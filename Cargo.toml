@@ -1,0 +1,7 @@
+[package]
+name = "point"
+version = "0.1.0"
+authors = ["Devin Alvaro <devin.alvaro@gmail.com>"]
+edition = "2018"
+
+[dependencies]
