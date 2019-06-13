@@ -8,7 +8,7 @@ use std::thread;
 use bincode;
 
 use crate::message::Message;
-use crate::point::{Point, User};
+use crate::people::{People, User};
 
 type Buffer = [u8; 4096];
 
@@ -95,12 +95,12 @@ impl ClientInner {
         }
     }
 
-    fn read_receiver(&self) -> Point {
+    fn read_receiver(&self) -> People {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
         let receiver_id = input.trim().parse::<i64>().unwrap();
 
-        Point::User(User::new(receiver_id))
+        People::User(User::new(receiver_id))
     }
 
     fn read_body(&self) -> String {

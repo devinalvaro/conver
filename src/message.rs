@@ -1,17 +1,17 @@
 use serde::{Deserialize, Serialize};
 
-use crate::point::Point;
-use crate::point::User;
+use crate::people::People;
+use crate::people::User;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     sender: User,
-    receiver: Point,
+    receiver: People,
     text: String,
 }
 
 impl Message {
-    pub fn new(sender: User, receiver: Point, text: String) -> Self {
+    pub fn new(sender: User, receiver: People, text: String) -> Self {
         Message {
             sender,
             receiver,
@@ -19,7 +19,7 @@ impl Message {
         }
     }
 
-    pub fn get_receiver(&self) -> &Point {
+    pub fn get_receiver(&self) -> &People {
         &self.receiver
     }
 }

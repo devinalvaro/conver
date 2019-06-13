@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-// TODO: figure out a better name
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Point {
+pub enum People {
     User(User),
     Group(Group),
 }

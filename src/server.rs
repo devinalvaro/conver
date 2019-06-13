@@ -9,7 +9,7 @@ use std::thread;
 use bincode;
 
 use crate::message::Message;
-use crate::point::{Group, Point, User};
+use crate::people::{Group, People, User};
 
 pub struct Server<'a> {
     address: &'a str,
@@ -92,10 +92,10 @@ impl ServerInner {
 
                     let message: Message = bincode::deserialize(&buffer[..]).unwrap();
                     match message.get_receiver() {
-                        Point::User(user) => {
+                        People::User(user) => {
                             self.send_message_to_user(user.clone(), message);
                         }
-                        Point::Group(group) => {
+                        People::Group(group) => {
                             self.send_message_to_group(group.clone(), message);
                         }
                     };

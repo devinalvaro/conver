@@ -1,4 +1,4 @@
 pub mod client;
 pub mod message;
-pub mod point;
+pub mod people;
 pub mod server;
