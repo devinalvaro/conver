@@ -29,6 +29,7 @@ impl<'a> Client<'a> {
         let server_url = [self.server_address, self.server_port].join(":");
         let mut stream = TcpStream::connect(server_url).unwrap();
 
+        // TODO: figure out a better input format
         loop {
             let mut input = String::new();
 

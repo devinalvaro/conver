@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+// TODO: figure out a better name
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Point {
     User(User),
