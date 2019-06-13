@@ -7,12 +7,18 @@ pub enum Point {
     Group(Group),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct Group {
     id: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+impl Group {
+    pub fn new(id: i64) -> Self {
+        Group { id }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct User {
     id: i64,
 }
