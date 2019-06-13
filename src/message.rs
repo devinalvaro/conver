@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::point::Point;
 use crate::point::User;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     sender: User,
     receiver: Point,
@@ -17,5 +17,9 @@ impl Message {
             receiver,
             text,
         }
+    }
+
+    pub fn get_receiver(&self) -> &Point {
+        &self.receiver
     }
 }
