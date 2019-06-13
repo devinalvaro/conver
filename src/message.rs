@@ -7,15 +7,17 @@ use crate::people::User;
 pub struct Message {
     sender: User,
     receiver: People,
-    text: String,
+
+    body: String,
 }
 
 impl Message {
-    pub fn new(sender: User, receiver: People, text: String) -> Self {
+    pub fn new(sender: User, receiver: People, body: String) -> Self {
         Message {
             sender,
             receiver,
-            text,
+
+            body,
         }
     }
 
