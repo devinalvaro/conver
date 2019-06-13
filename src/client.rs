@@ -31,14 +31,14 @@ impl<'a> Client<'a> {
 
         // TODO: figure out a better input format
         loop {
-            let mut input = String::new();
-
-            io::stdin().read_line(&mut input).unwrap();
-            let receiver_id = input.trim().parse::<i64>().unwrap();
+            let mut receiver_id = String::new();
+            io::stdin().read_line(&mut receiver_id).unwrap();
+            let receiver_id = receiver_id.trim().parse::<i64>().unwrap();
             let receiver = User::new(receiver_id);
 
-            io::stdin().read_line(&mut input).unwrap();
-            let message = Message::new(self.user.clone(), Point::User(receiver), input);
+            let mut text = String::new();
+            io::stdin().read_line(&mut text).unwrap();
+            let message = Message::new(self.user.clone(), Point::User(receiver), text);
 
             let message = bincode::serialize(&message).unwrap();
             stream.write(&message[..]).unwrap();
