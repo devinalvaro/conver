@@ -1,4 +1,5 @@
 use std::collections::{vec_deque::VecDeque, HashMap};
+use std::error::Error;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::str;
@@ -37,16 +38,16 @@ impl<'a> Server<'a> {
         }
     }
 
-    pub fn start(self) {
+    pub fn start(self) -> Result<(), Box<dyn Error>> {
         let url = [self.address, self.port].join(":");
-        let listener = TcpListener::bind(url).unwrap();
+        let listener = TcpListener::bind(url)?;
 
         for stream in listener.incoming() {
-            let mut stream = stream.unwrap();
+            let mut stream = stream?;
 
-            let sender = self.read_sender(&mut stream);
+            let sender = self.read_sender(&mut stream)?;
 
-            let write_stream = stream.try_clone().unwrap();
+            let write_stream = stream.try_clone()?;
             let write_inner = self.inner.clone();
             thread::spawn(move || write_inner.handle_connection_write(write_stream, &sender));
 
@@ -54,13 +55,15 @@ impl<'a> Server<'a> {
             let read_inner = self.inner.clone();
             thread::spawn(move || read_inner.handle_connection_read(read_stream));
         }
+
+        Ok(())
     }
 
-    fn read_sender(&self, stream: &mut TcpStream) -> User {
+    fn read_sender(&self, stream: &mut TcpStream) -> Result<User, Box<dyn Error>> {
         let mut buffer: Buffer = [0; 4096];
-        stream.read(&mut buffer).unwrap();
+        stream.read(&mut buffer)?;
 
-        bincode::deserialize(&buffer[..]).unwrap()
+        Ok(bincode::deserialize(&buffer[..])?)
     }
 }
 

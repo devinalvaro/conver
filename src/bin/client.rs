@@ -14,5 +14,5 @@ fn main() {
     };
 
     let client = Client::new(user_id, "127.0.0.1", "7878");
-    client.start();
+    client.start().unwrap();
 }

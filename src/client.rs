@@ -1,6 +1,8 @@
+use std::error::Error;
 use std::io::{self, prelude::*};
 use std::net::TcpStream;
 use std::str;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bincode;
@@ -11,60 +13,72 @@ use crate::point::{Point, User};
 type Buffer = [u8; 4096];
 
 pub struct Client<'a> {
-    user: User,
-
     server_address: &'a str,
     server_port: &'a str,
+
+    inner: Arc<ClientInner>,
+}
+
+struct ClientInner {
+    user: Mutex<User>,
 }
 
 impl<'a> Client<'a> {
     pub fn new(user_id: i64, server_address: &'a str, server_port: &'a str) -> Self {
         Client {
-            user: User::new(user_id),
-
             server_address,
             server_port,
+
+            inner: Arc::new(ClientInner {
+                user: Mutex::new(User::new(user_id)),
+            }),
         }
     }
 
-    pub fn start(&self) {
+    pub fn start(&self) -> Result<(), Box<dyn Error>> {
         let server_url = [self.server_address, self.server_port].join(":");
-        let mut stream = TcpStream::connect(server_url).unwrap();
+        let mut stream = TcpStream::connect(server_url)?;
 
-        let user = bincode::serialize(&self.user).unwrap();
-        stream.write(&user[..]).unwrap();
+        self.write_user(&mut stream)?;
 
-        let user = self.user.clone();
-
-        // TODO: figure out a better input format
-        let write_stream = stream.try_clone().unwrap();
+        let write_stream = stream.try_clone()?;
+        let write_inner = self.inner.clone();
         let write_handler =
-            thread::spawn(move || Client::handle_connection_write(write_stream, user));
+            thread::spawn(move || write_inner.handle_connection_write(write_stream));
 
         let read_stream = stream;
-        let read_handler = thread::spawn(move || Client::handle_connection_read(read_stream));
+        let read_inner = self.inner.clone();
+        let read_handler = thread::spawn(move || read_inner.handle_connection_read(read_stream));
 
         write_handler.join().unwrap();
         read_handler.join().unwrap();
+
+        Ok(())
     }
 
-    pub fn handle_connection_write(mut stream: TcpStream, user: User) {
+    fn write_user(&self, stream: &mut TcpStream) -> Result<(), Box<dyn Error>> {
+        let user = self.inner.user.lock().unwrap();
+        let user = bincode::serialize(&*user)?;
+        stream.write(&user[..])?;
+
+        Ok(())
+    }
+}
+
+impl ClientInner {
+    fn handle_connection_write(&self, mut stream: TcpStream) {
         loop {
-            let mut receiver_id = String::new();
-            io::stdin().read_line(&mut receiver_id).unwrap();
-            let receiver_id = receiver_id.trim().parse::<i64>().unwrap();
-            let receiver = User::new(receiver_id);
+            let user = self.user.lock().unwrap();
+            let receiver = self.read_receiver();
+            let body = self.read_body();
 
-            let mut text = String::new();
-            io::stdin().read_line(&mut text).unwrap();
-            let message = Message::new(user.clone(), Point::User(receiver), text);
-
+            let message = Message::new(user.clone(), receiver, body);
             let message = bincode::serialize(&message).unwrap();
             stream.write(&message[..]).unwrap();
         }
     }
 
-    pub fn handle_connection_read(mut stream: TcpStream) {
+    fn handle_connection_read(&self, mut stream: TcpStream) {
         loop {
             let mut buffer: Buffer = [0; 4096];
             match stream.read(&mut buffer) {
@@ -79,5 +93,21 @@ impl<'a> Client<'a> {
                 Err(err) => panic!("{}", err),
             };
         }
+    }
+
+    fn read_receiver(&self) -> Point {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let receiver_id = input.trim().parse::<i64>().unwrap();
+
+        Point::User(User::new(receiver_id))
+    }
+
+    fn read_body(&self) -> String {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let body = input;
+
+        body
     }
 }
