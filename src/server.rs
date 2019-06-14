@@ -102,24 +102,6 @@ impl ServerInner {
         }
     }
 
-    fn handle_write_stream(
-        &self,
-        mut stream: TcpStream,
-        pulse_receiver: mpsc::Receiver<()>,
-        client_username: String,
-    ) {
-        loop {
-            if let Err(pulse) = pulse_receiver.try_recv() {
-                if let TryRecvError::Disconnected = pulse {
-                    break;
-                }
-            }
-
-            let client = User::new(client_username.clone());
-            self.send_message_to_client(&mut stream, &client);
-        }
-    }
-
     fn queue_user_message(&self, user: User, message: Message) {
         let mut pending_message_queues = self.pending_message_queues.lock().unwrap();
         let pending_messages = pending_message_queues
@@ -138,7 +120,33 @@ impl ServerInner {
         }
     }
 
-    fn send_message_to_client(&self, stream: &mut TcpStream, client: &User) {
+    fn handle_write_stream(
+        &self,
+        mut stream: TcpStream,
+        pulse_receiver: mpsc::Receiver<()>,
+        client_username: String,
+    ) {
+        loop {
+            if !self.is_pulsing(&pulse_receiver) {
+                break;
+            }
+
+            let client = User::new(client_username.clone());
+            self.send_message(&mut stream, &client);
+        }
+    }
+
+    fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
+        if let Err(pulse) = pulse_receiver.try_recv() {
+            if let TryRecvError::Disconnected = pulse {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn send_message(&self, stream: &mut TcpStream, client: &User) {
         let mut pending_message_queues = self.pending_message_queues.lock().unwrap();
         let pending_messages = pending_message_queues.get_mut(client);
 

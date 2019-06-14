@@ -90,20 +90,31 @@ impl ClientInner {
 
     fn handle_write_stream(&self, mut stream: TcpStream, pulse_receiver: mpsc::Receiver<()>) {
         loop {
-            if let Err(pulse) = pulse_receiver.try_recv() {
-                if let TryRecvError::Disconnected = pulse {
-                    break;
-                }
+            if !self.is_pulsing(&pulse_receiver) {
+                break;
             }
 
-            let user = self.get_user();
-            let receiver = self.read_receiver();
-            let body = self.read_body();
-
-            let message = Message::new(user, receiver, body);
-            let message = bincode::serialize(&message).unwrap();
-            stream.write(&message[..]).unwrap();
+            let message = self.read_message();
+            self.send_message(&mut stream, message);
         }
+    }
+
+    fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
+        if let Err(pulse) = pulse_receiver.try_recv() {
+            if let TryRecvError::Disconnected = pulse {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn read_message(&self) -> Message {
+        let user = self.get_user();
+        let receiver = self.read_receiver();
+        let body = self.read_body();
+
+        Message::new(user, receiver, body)
     }
 
     fn get_user(&self) -> User {
@@ -124,5 +135,10 @@ impl ClientInner {
         io::stdin().read_line(&mut body).unwrap();
 
         body
+    }
+
+    fn send_message(&self, stream: &mut TcpStream, message: Message) {
+        let message = bincode::serialize(&message).unwrap();
+        stream.write(&message[..]).unwrap();
     }
 }
