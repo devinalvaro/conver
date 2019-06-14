@@ -121,6 +121,7 @@ impl ClientInner {
     fn read_receiver(&self) -> People {
         let mut receiver_username = String::new();
         io::stdin().read_line(&mut receiver_username).unwrap();
+        receiver_username = receiver_username.trim().into();
 
         People::User(User::new(receiver_username))
     }
