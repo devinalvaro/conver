@@ -3,6 +3,7 @@ use std::error::Error;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::str;
+use std::sync::mpsc::{self, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -47,13 +48,18 @@ impl<'a> Server<'a> {
 
             let sender = self.read_sender(&mut stream)?;
 
-            let write_stream = stream.try_clone()?;
-            let write_inner = self.inner.clone();
-            thread::spawn(move || write_inner.handle_connection_write(write_stream, &sender));
+            let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
+                mpsc::channel();
 
-            let read_stream = stream;
+            let read_stream = stream.try_clone()?;
             let read_inner = self.inner.clone();
-            thread::spawn(move || read_inner.handle_connection_read(read_stream));
+            thread::spawn(move || read_inner.handle_read_stream(read_stream, pulse_sender));
+
+            let write_stream = stream;
+            let write_inner = self.inner.clone();
+            thread::spawn(move || {
+                write_inner.handle_write_stream(write_stream, pulse_receiver, &sender)
+            });
         }
 
         Ok(())
@@ -68,40 +74,47 @@ impl<'a> Server<'a> {
 }
 
 impl ServerInner {
-    fn handle_connection_write(&self, mut stream: TcpStream, user: &User) {
+    fn handle_read_stream(&self, mut stream: TcpStream, _pulse_sender: mpsc::Sender<()>) {
         loop {
-            let mut pending_message_queues = self.pending_message_queues.lock().unwrap();
+            let mut buffer: Buffer = [0; 4096];
+            if stream.read(&mut buffer).unwrap() == 0 {
+                break;
+            }
 
-            if let Some(pending_messages) = pending_message_queues.get_mut(user) {
+            let message: Message = bincode::deserialize(&buffer[..]).unwrap();
+            match message.get_receiver() {
+                People::User(user) => {
+                    self.send_message_to_user(user.clone(), message);
+                }
+                People::Group(group) => {
+                    self.send_message_to_group(group.clone(), message);
+                }
+            };
+        }
+    }
+
+    fn handle_write_stream(
+        &self,
+        mut stream: TcpStream,
+        pulse_receiver: mpsc::Receiver<()>,
+        user: &User,
+    ) {
+        loop {
+            if let Err(pulse) = pulse_receiver.try_recv() {
+                if let TryRecvError::Disconnected = pulse {
+                    break;
+                }
+            }
+
+            let mut pending_message_queues = self.pending_message_queues.lock().unwrap();
+            let pending_messages = pending_message_queues.get_mut(user);
+
+            if let Some(pending_messages) = pending_messages {
                 if let Some(message) = pending_messages.pop_front() {
                     let message = bincode::serialize(&message).unwrap();
                     stream.write(&message[..]).unwrap();
                 }
             }
-        }
-    }
-
-    fn handle_connection_read(&self, mut stream: TcpStream) {
-        loop {
-            let mut buffer: Buffer = [0; 4096];
-            match stream.read(&mut buffer) {
-                Ok(n) => {
-                    if n == 0 {
-                        break;
-                    }
-
-                    let message: Message = bincode::deserialize(&buffer[..]).unwrap();
-                    match message.get_receiver() {
-                        People::User(user) => {
-                            self.send_message_to_user(user.clone(), message);
-                        }
-                        People::Group(group) => {
-                            self.send_message_to_group(group.clone(), message);
-                        }
-                    };
-                }
-                Err(err) => panic!("{}", err),
-            };
         }
     }
 
