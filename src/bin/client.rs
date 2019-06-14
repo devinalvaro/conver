@@ -3,7 +3,6 @@ use std::env;
 use point::client::Client;
 
 fn main() {
-    // TODO: parse flags
     let mut args = env::args();
     args.next();
 
