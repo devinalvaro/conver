@@ -21,17 +21,17 @@ pub struct Client<'a> {
 }
 
 struct ClientInner {
-    user_id: Mutex<i64>,
+    username: Mutex<String>,
 }
 
 impl<'a> Client<'a> {
-    pub fn new(user_id: i64, server_address: &'a str, server_port: &'a str) -> Self {
+    pub fn new(username: String, server_address: &'a str, server_port: &'a str) -> Self {
         Client {
             server_address,
             server_port,
 
             inner: Arc::new(ClientInner {
-                user_id: Mutex::new(user_id),
+                username: Mutex::new(username),
             }),
         }
     }
@@ -40,16 +40,16 @@ impl<'a> Client<'a> {
         let server_url = [self.server_address, self.server_port].join(":");
         let mut stream = TcpStream::connect(server_url)?;
 
-        self.write_user_id(&mut stream)?;
+        self.write_username(&mut stream)?;
         self.handle_stream(stream)?;
 
         Ok(())
     }
 
-    fn write_user_id(&self, stream: &mut TcpStream) -> Result<(), Box<dyn Error>> {
-        let user_id = self.inner.user_id.lock().unwrap();
-        let user_id = bincode::serialize(&*user_id)?;
-        stream.write(&user_id[..])?;
+    fn write_username(&self, stream: &mut TcpStream) -> Result<(), Box<dyn Error>> {
+        let username = self.inner.username.lock().unwrap();
+        let username = bincode::serialize(&*username)?;
+        stream.write(&username[..])?;
 
         Ok(())
     }
@@ -107,23 +107,21 @@ impl ClientInner {
     }
 
     fn get_user(&self) -> User {
-        let user_id = self.user_id.lock().unwrap();
+        let username = self.username.lock().unwrap();
 
-        User::new(user_id.clone())
+        User::new(username.clone())
     }
 
     fn read_receiver(&self) -> People {
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let receiver_id = input.trim().parse::<i64>().unwrap();
+        let mut receiver_username = String::new();
+        io::stdin().read_line(&mut receiver_username).unwrap();
 
-        People::User(User::new(receiver_id))
+        People::User(User::new(receiver_username))
     }
 
     fn read_body(&self) -> String {
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let body = input;
+        let mut body = String::new();
+        io::stdin().read_line(&mut body).unwrap();
 
         body
     }

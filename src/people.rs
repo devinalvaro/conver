@@ -7,23 +7,23 @@ pub enum People {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct Group {
-    id: i64,
+pub struct User {
+    username: String,
 }
 
-impl Group {
-    pub fn new(id: i64) -> Self {
-        Group { id }
+impl User {
+    pub fn new(username: String) -> Self {
+        User { username }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct User {
-    id: i64,
+pub struct Group {
+    groupname: String,
 }
 
-impl User {
-    pub fn new(id: i64) -> Self {
-        User { id }
+impl Group {
+    pub fn new(groupname: String) -> Self {
+        Group { groupname }
     }
 }

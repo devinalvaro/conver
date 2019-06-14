@@ -46,21 +46,25 @@ impl<'a> Server<'a> {
         for stream in listener.incoming() {
             let mut stream = stream?;
 
-            let client_id = self.read_client_id(&mut stream)?;
-            self.handle_stream(stream, client_id)?;
+            let client_username = self.read_client_username(&mut stream)?;
+            self.handle_stream(stream, client_username)?;
         }
 
         Ok(())
     }
 
-    fn read_client_id(&self, stream: &mut TcpStream) -> Result<i64, Box<dyn Error>> {
+    fn read_client_username(&self, stream: &mut TcpStream) -> Result<String, Box<dyn Error>> {
         let mut buffer: Buffer = [0; 4096];
         stream.read(&mut buffer)?;
 
         Ok(bincode::deserialize(&buffer[..])?)
     }
 
-    fn handle_stream(&self, stream: TcpStream, client_id: i64) -> Result<(), Box<dyn Error>> {
+    fn handle_stream(
+        &self,
+        stream: TcpStream,
+        client_username: String,
+    ) -> Result<(), Box<dyn Error>> {
         let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
             mpsc::channel();
 
@@ -71,7 +75,7 @@ impl<'a> Server<'a> {
         let write_stream = stream;
         let write_inner = self.inner.clone();
         thread::spawn(move || {
-            write_inner.handle_write_stream(write_stream, pulse_receiver, client_id)
+            write_inner.handle_write_stream(write_stream, pulse_receiver, client_username)
         });
 
         Ok(())
@@ -102,7 +106,7 @@ impl ServerInner {
         &self,
         mut stream: TcpStream,
         pulse_receiver: mpsc::Receiver<()>,
-        client_id: i64,
+        client_username: String,
     ) {
         loop {
             if let Err(pulse) = pulse_receiver.try_recv() {
@@ -111,7 +115,7 @@ impl ServerInner {
                 }
             }
 
-            let client = User::new(client_id);
+            let client = User::new(client_username.clone());
             self.send_message_to_client(&mut stream, &client);
         }
     }
