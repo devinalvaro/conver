@@ -8,6 +8,6 @@ fn main() {
 
     let username = args.next().unwrap();
 
-    let client = Client::new(username, "127.0.0.1", "7878");
+    let client = Client::new("127.0.0.1", "7878", username);
     client.start().unwrap();
 }

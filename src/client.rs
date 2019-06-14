@@ -3,7 +3,7 @@ use std::io::{self, prelude::*};
 use std::net::TcpStream;
 use std::str;
 use std::sync::mpsc::{self, TryRecvError};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 
 use bincode;
@@ -21,18 +21,16 @@ pub struct Client<'a> {
 }
 
 struct ClientInner {
-    username: Mutex<String>,
+    username: String,
 }
 
 impl<'a> Client<'a> {
-    pub fn new(username: String, server_address: &'a str, server_port: &'a str) -> Self {
+    pub fn new(server_address: &'a str, server_port: &'a str, username: String) -> Self {
         Client {
             server_address,
             server_port,
 
-            inner: Arc::new(ClientInner {
-                username: Mutex::new(username),
-            }),
+            inner: Arc::new(ClientInner { username }),
         }
     }
 
@@ -47,8 +45,7 @@ impl<'a> Client<'a> {
     }
 
     fn write_username(&self, stream: &mut TcpStream) -> Result<(), Box<dyn Error>> {
-        let username = self.inner.username.lock().unwrap();
-        let username = bincode::serialize(&*username)?;
+        let username = bincode::serialize(&self.inner.username)?;
         stream.write(&username[..])?;
 
         Ok(())
@@ -118,9 +115,7 @@ impl ClientInner {
     }
 
     fn get_user(&self) -> User {
-        let username = self.username.lock().unwrap();
-
-        User::new(username.clone())
+        User::new(self.username.clone())
     }
 
     fn read_receiver(&self) -> People {
