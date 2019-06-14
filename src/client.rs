@@ -21,7 +21,7 @@ pub struct Client<'a> {
 }
 
 struct ClientInner {
-    user: Mutex<User>,
+    user_id: Mutex<i64>,
 }
 
 impl<'a> Client<'a> {
@@ -31,7 +31,7 @@ impl<'a> Client<'a> {
             server_port,
 
             inner: Arc::new(ClientInner {
-                user: Mutex::new(User::new(user_id)),
+                user_id: Mutex::new(user_id),
             }),
         }
     }
@@ -40,8 +40,21 @@ impl<'a> Client<'a> {
         let server_url = [self.server_address, self.server_port].join(":");
         let mut stream = TcpStream::connect(server_url)?;
 
-        self.write_user(&mut stream)?;
+        self.write_user_id(&mut stream)?;
+        self.handle_stream(stream)?;
 
+        Ok(())
+    }
+
+    fn write_user_id(&self, stream: &mut TcpStream) -> Result<(), Box<dyn Error>> {
+        let user_id = self.inner.user_id.lock().unwrap();
+        let user_id = bincode::serialize(&*user_id)?;
+        stream.write(&user_id[..])?;
+
+        Ok(())
+    }
+
+    fn handle_stream(&self, stream: TcpStream) -> Result<(), Box<dyn Error>> {
         let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
             mpsc::channel();
 
@@ -57,14 +70,6 @@ impl<'a> Client<'a> {
 
         write_handler.join().unwrap();
         read_handler.join().unwrap();
-
-        Ok(())
-    }
-
-    fn write_user(&self, stream: &mut TcpStream) -> Result<(), Box<dyn Error>> {
-        let user = self.inner.user.lock().unwrap();
-        let user = bincode::serialize(&*user)?;
-        stream.write(&user[..])?;
 
         Ok(())
     }
@@ -91,14 +96,20 @@ impl ClientInner {
                 }
             }
 
-            let user = self.user.lock().unwrap();
+            let user = self.get_user();
             let receiver = self.read_receiver();
             let body = self.read_body();
 
-            let message = Message::new(user.clone(), receiver, body);
+            let message = Message::new(user, receiver, body);
             let message = bincode::serialize(&message).unwrap();
             stream.write(&message[..]).unwrap();
         }
+    }
+
+    fn get_user(&self) -> User {
+        let user_id = self.user_id.lock().unwrap();
+
+        User::new(user_id.clone())
     }
 
     fn read_receiver(&self) -> People {

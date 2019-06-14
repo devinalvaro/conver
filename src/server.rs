@@ -46,30 +46,35 @@ impl<'a> Server<'a> {
         for stream in listener.incoming() {
             let mut stream = stream?;
 
-            let sender = self.read_sender(&mut stream)?;
-
-            let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
-                mpsc::channel();
-
-            let read_stream = stream.try_clone()?;
-            let read_inner = self.inner.clone();
-            thread::spawn(move || read_inner.handle_read_stream(read_stream, pulse_sender));
-
-            let write_stream = stream;
-            let write_inner = self.inner.clone();
-            thread::spawn(move || {
-                write_inner.handle_write_stream(write_stream, pulse_receiver, &sender)
-            });
+            let client_id = self.read_client_id(&mut stream)?;
+            self.handle_stream(stream, client_id)?;
         }
 
         Ok(())
     }
 
-    fn read_sender(&self, stream: &mut TcpStream) -> Result<User, Box<dyn Error>> {
+    fn read_client_id(&self, stream: &mut TcpStream) -> Result<i64, Box<dyn Error>> {
         let mut buffer: Buffer = [0; 4096];
         stream.read(&mut buffer)?;
 
         Ok(bincode::deserialize(&buffer[..])?)
+    }
+
+    fn handle_stream(&self, stream: TcpStream, client_id: i64) -> Result<(), Box<dyn Error>> {
+        let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
+            mpsc::channel();
+
+        let read_stream = stream.try_clone()?;
+        let read_inner = self.inner.clone();
+        thread::spawn(move || read_inner.handle_read_stream(read_stream, pulse_sender));
+
+        let write_stream = stream;
+        let write_inner = self.inner.clone();
+        thread::spawn(move || {
+            write_inner.handle_write_stream(write_stream, pulse_receiver, client_id)
+        });
+
+        Ok(())
     }
 }
 
@@ -84,10 +89,10 @@ impl ServerInner {
             let message: Message = bincode::deserialize(&buffer[..]).unwrap();
             match message.get_receiver() {
                 People::User(user) => {
-                    self.send_message_to_user(user.clone(), message);
+                    self.queue_user_message(user.clone(), message);
                 }
                 People::Group(group) => {
-                    self.send_message_to_group(group.clone(), message);
+                    self.queue_group_message(group.clone(), message);
                 }
             };
         }
@@ -97,7 +102,7 @@ impl ServerInner {
         &self,
         mut stream: TcpStream,
         pulse_receiver: mpsc::Receiver<()>,
-        user: &User,
+        client_id: i64,
     ) {
         loop {
             if let Err(pulse) = pulse_receiver.try_recv() {
@@ -106,19 +111,12 @@ impl ServerInner {
                 }
             }
 
-            let mut pending_message_queues = self.pending_message_queues.lock().unwrap();
-            let pending_messages = pending_message_queues.get_mut(user);
-
-            if let Some(pending_messages) = pending_messages {
-                if let Some(message) = pending_messages.pop_front() {
-                    let message = bincode::serialize(&message).unwrap();
-                    stream.write(&message[..]).unwrap();
-                }
-            }
+            let client = User::new(client_id);
+            self.send_message_to_client(&mut stream, &client);
         }
     }
 
-    fn send_message_to_user(&self, user: User, message: Message) {
+    fn queue_user_message(&self, user: User, message: Message) {
         let mut pending_message_queues = self.pending_message_queues.lock().unwrap();
         let pending_messages = pending_message_queues
             .entry(user)
@@ -127,12 +125,24 @@ impl ServerInner {
         pending_messages.push_back(message);
     }
 
-    fn send_message_to_group(&self, group: Group, message: Message) {
+    fn queue_group_message(&self, group: Group, message: Message) {
         let mut group_member_lists = self.group_member_lists.lock().unwrap();
         let group_members = group_member_lists.entry(group).or_insert(vec![]);
 
         for member in group_members {
-            self.send_message_to_user(member.clone(), message.clone());
+            self.queue_user_message(member.clone(), message.clone());
+        }
+    }
+
+    fn send_message_to_client(&self, stream: &mut TcpStream, client: &User) {
+        let mut pending_message_queues = self.pending_message_queues.lock().unwrap();
+        let pending_messages = pending_message_queues.get_mut(client);
+
+        if let Some(pending_messages) = pending_messages {
+            if let Some(message) = pending_messages.pop_front() {
+                let message = bincode::serialize(&message).unwrap();
+                stream.write(&message[..]).unwrap();
+            }
         }
     }
 }
