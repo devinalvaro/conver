@@ -14,7 +14,7 @@ use crate::people::{People, User};
 type Buffer = [u8; 4096];
 
 pub struct Client<'a> {
-    server_address: &'a str,
+    server_host: &'a str,
     server_port: &'a str,
 
     inner: Arc<ClientInner>,
@@ -25,9 +25,9 @@ struct ClientInner {
 }
 
 impl<'a> Client<'a> {
-    pub fn new(server_address: &'a str, server_port: &'a str, username: String) -> Self {
+    pub fn new(server_host: &'a str, server_port: &'a str, username: String) -> Self {
         Client {
-            server_address,
+            server_host,
             server_port,
 
             inner: Arc::new(ClientInner { username }),
@@ -35,8 +35,8 @@ impl<'a> Client<'a> {
     }
 
     pub fn start(&self) -> Result<(), Box<dyn Error>> {
-        let server_url = [self.server_address, self.server_port].join(":");
-        let mut stream = TcpStream::connect(server_url)?;
+        let server_address = [self.server_host, self.server_port].join(":");
+        let mut stream = TcpStream::connect(server_address)?;
 
         self.write_username(&mut stream)?;
         self.handle_stream(stream)?;

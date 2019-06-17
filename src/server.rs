@@ -13,7 +13,7 @@ use crate::message::Message;
 use crate::people::{Group, People, User};
 
 pub struct Server<'a> {
-    address: &'a str,
+    host: &'a str,
     port: &'a str,
 
     inner: Arc<ServerInner>,
@@ -27,9 +27,9 @@ struct ServerInner {
 type Buffer = [u8; 4096];
 
 impl<'a> Server<'a> {
-    pub fn new(address: &'a str, port: &'a str) -> Self {
+    pub fn new(host: &'a str, port: &'a str) -> Self {
         Server {
-            address,
+            host,
             port,
 
             inner: Arc::new(ServerInner {
@@ -40,8 +40,8 @@ impl<'a> Server<'a> {
     }
 
     pub fn start(self) -> Result<(), Box<dyn Error>> {
-        let url = [self.address, self.port].join(":");
-        let listener = TcpListener::bind(url)?;
+        let address = [self.host, self.port].join(":");
+        let listener = TcpListener::bind(address)?;
 
         for stream in listener.incoming() {
             let mut stream = stream?;
