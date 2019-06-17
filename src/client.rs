@@ -8,8 +8,8 @@ use std::thread;
 
 use bincode;
 
-use crate::message::Message;
-use crate::people::{People, User};
+use crate::message::{Chat, Join, Message};
+use crate::people::{Group, People, User};
 
 type Buffer = [u8; 4096];
 
@@ -80,8 +80,8 @@ impl ClientInner {
                 break;
             }
 
-            let message: Message = bincode::deserialize(&buffer[..]).unwrap();
-            println!("{:?}", message);
+            let chat: Chat = bincode::deserialize(&buffer[..]).unwrap();
+            println!("{}: {}", chat.get_sender(), chat.get_body());
         }
     }
 
@@ -108,10 +108,23 @@ impl ClientInner {
 
     fn read_message(&self) -> Message {
         let user = self.get_user();
-        let receiver = self.read_receiver();
-        let body = self.read_body();
 
-        Message::new(user, receiver, body)
+        let mut message_type = String::new();
+        io::stdin().read_line(&mut message_type).unwrap();
+        match message_type.trim() {
+            "CHAT" => {
+                let receiver = self.read_receiver();
+                let body = self.read_body();
+
+                Message::Chat(Chat::new(user, receiver, body))
+            }
+            "JOIN" => {
+                let group = self.read_group();
+
+                Message::Join(Join::new(user, group))
+            }
+            _ => panic!("unknown message type"),
+        }
     }
 
     fn get_user(&self) -> User {
@@ -119,11 +132,35 @@ impl ClientInner {
     }
 
     fn read_receiver(&self) -> People {
-        let mut receiver_username = String::new();
-        io::stdin().read_line(&mut receiver_username).unwrap();
-        receiver_username = receiver_username.trim().into();
+        let mut receiver_type = String::new();
+        io::stdin().read_line(&mut receiver_type).unwrap();
+        match receiver_type.trim() {
+            "USER" => {
+                let receiver = self.read_user();
 
-        People::User(User::new(receiver_username))
+                People::User(receiver)
+            }
+            "GROUP" => {
+                let receiver = self.read_group();
+
+                People::Group(receiver)
+            }
+            _ => panic!("unknown receiver type"),
+        }
+    }
+
+    fn read_user(&self) -> User {
+        let mut username = String::new();
+        io::stdin().read_line(&mut username).unwrap();
+
+        User::new(username.trim().into())
+    }
+
+    fn read_group(&self) -> Group {
+        let mut groupname = String::new();
+        io::stdin().read_line(&mut groupname).unwrap();
+
+        Group::new(groupname.trim().into())
     }
 
     fn read_body(&self) -> String {

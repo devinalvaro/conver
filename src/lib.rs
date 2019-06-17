@@ -5,5 +5,4 @@ pub mod server;
 
 // TODO: command options
 // TODO: integration tests
-// TODO: more complete protocol (e.g. group join)
-// TODO: more robust error handling
+// TODO: robust error handling
