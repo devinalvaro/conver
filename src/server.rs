@@ -122,9 +122,13 @@ impl ServerInner {
 
     fn queue_group_chat(&self, group: Group, chat: Chat) {
         let mut group_member_lists = self.group_member_lists.lock().unwrap();
-        let group_members = group_member_lists.entry(group.clone()).or_insert(vec![]);
+        let group_members = group_member_lists.entry(group).or_insert(vec![]);
 
         for member in group_members {
+            if member == chat.get_sender() {
+                continue;
+            }
+
             self.queue_user_chat(member.clone(), chat.clone());
         }
     }
@@ -135,12 +139,9 @@ impl ServerInner {
         pulse_receiver: mpsc::Receiver<()>,
         client_username: String,
     ) {
-        loop {
-            if !self.is_pulsing(&pulse_receiver) {
-                break;
-            }
+        let client = User::new(client_username);
 
-            let client = User::new(client_username.clone());
+        while self.is_pulsing(&pulse_receiver) {
             self.send_chat(&mut stream, &client);
         }
     }

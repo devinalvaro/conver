@@ -86,11 +86,7 @@ impl ClientInner {
     }
 
     fn handle_write_stream(&self, mut stream: TcpStream, pulse_receiver: mpsc::Receiver<()>) {
-        loop {
-            if !self.is_pulsing(&pulse_receiver) {
-                break;
-            }
-
+        while self.is_pulsing(&pulse_receiver) {
             let message = self.read_message();
             self.send_message(&mut stream, message);
         }
