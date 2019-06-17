@@ -56,12 +56,12 @@ impl<'a> Client<'a> {
             mpsc::channel();
 
         let read_stream = stream.try_clone()?;
-        let read_inner = self.inner.clone();
+        let read_inner = Arc::clone(&self.inner);
         let read_handler =
             thread::spawn(move || read_inner.handle_read_stream(read_stream, pulse_sender));
 
         let write_stream = stream;
-        let write_inner = self.inner.clone();
+        let write_inner = Arc::clone(&self.inner);
         let write_handler =
             thread::spawn(move || write_inner.handle_write_stream(write_stream, pulse_receiver));
 

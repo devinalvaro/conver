@@ -21,7 +21,7 @@ pub struct Server<'a> {
 
 struct ServerInner {
     group_member_lists: Mutex<HashMap<Group, Vec<User>>>,
-    pending_chat_queues: Mutex<HashMap<User, VecDeque<Chat>>>,
+    pending_chat_queues: Mutex<HashMap<User, VecDeque<Arc<Chat>>>>,
 }
 
 type Buffer = [u8; 4096];
@@ -68,11 +68,11 @@ impl<'a> Server<'a> {
             mpsc::channel();
 
         let read_stream = stream.try_clone()?;
-        let read_inner = self.inner.clone();
+        let read_inner = Arc::clone(&self.inner);
         thread::spawn(move || read_inner.handle_read_stream(read_stream, pulse_sender));
 
         let write_stream = stream;
-        let write_inner = self.inner.clone();
+        let write_inner = Arc::clone(&self.inner);
         thread::spawn(move || {
             write_inner.handle_write_stream(write_stream, pulse_receiver, client_username)
         });
@@ -94,10 +94,10 @@ impl ServerInner {
                 Message::Chat(chat) => {
                     match chat.get_receiver() {
                         People::User(user) => {
-                            self.queue_user_chat(user.clone(), chat);
+                            self.queue_user_chat(user.clone(), Arc::new(chat));
                         }
                         People::Group(group) => {
-                            self.queue_group_chat(group.clone(), chat);
+                            self.queue_group_chat(group.clone(), Arc::new(chat));
                         }
                     };
                 }
@@ -113,14 +113,14 @@ impl ServerInner {
         }
     }
 
-    fn queue_user_chat(&self, user: User, chat: Chat) {
+    fn queue_user_chat(&self, user: User, chat: Arc<Chat>) {
         let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
         let pending_chats = pending_chat_queues.entry(user).or_insert(VecDeque::new());
 
         pending_chats.push_back(chat);
     }
 
-    fn queue_group_chat(&self, group: Group, chat: Chat) {
+    fn queue_group_chat(&self, group: Group, chat: Arc<Chat>) {
         let mut group_member_lists = self.group_member_lists.lock().unwrap();
         let group_members = group_member_lists.entry(group).or_insert(vec![]);
 
@@ -129,7 +129,7 @@ impl ServerInner {
                 continue;
             }
 
-            self.queue_user_chat(member.clone(), chat.clone());
+            self.queue_user_chat(member.clone(), Arc::clone(&chat));
         }
     }
 
@@ -162,7 +162,7 @@ impl ServerInner {
 
         if let Some(pending_chats) = pending_chats {
             if let Some(chat) = pending_chats.pop_front() {
-                let chat = bincode::serialize(&chat).unwrap();
+                let chat = bincode::serialize(&*chat).unwrap();
                 stream.write(&chat[..]).unwrap();
             }
         }
