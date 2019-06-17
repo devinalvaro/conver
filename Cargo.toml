@@ -1,5 +1,5 @@
 [package]
-name = "point"
+name = "conver"
 version = "0.1.0"
 authors = ["Devin Alvaro <devin.alvaro@gmail.com>"]
 edition = "2018"

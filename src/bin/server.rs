@@ -1,6 +1,6 @@
 use clap::{App, Arg};
 
-use point::server::Server;
+use conver::server::Server;
 
 fn main() {
     let matches = App::new("Point Client")
