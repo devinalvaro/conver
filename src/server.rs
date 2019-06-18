@@ -9,7 +9,7 @@ use std::thread;
 
 use bincode;
 
-use crate::message::{Chat, Message};
+use crate::message::{Chat, Join, Message};
 use crate::people::{Group, People, User};
 
 pub struct Server<'a> {
@@ -91,24 +91,53 @@ impl ServerInner {
 
             let message: Message = bincode::deserialize(&buffer[..]).unwrap();
             match message {
-                Message::Chat(chat) => {
-                    match chat.get_receiver() {
-                        People::User(user) => {
-                            self.queue_user_chat(user.clone(), Arc::new(chat));
-                        }
-                        People::Group(group) => {
-                            self.queue_group_chat(group.clone(), Arc::new(chat));
-                        }
-                    };
-                }
-                Message::Join(join) => {
-                    let mut group_member_lists = self.group_member_lists.lock().unwrap();
-                    let group_members = group_member_lists
-                        .entry(join.get_group().clone())
-                        .or_insert(vec![]);
+                Message::Chat(chat) => self.queue_chat(chat),
+                Message::Join(join) => self.join_group(join),
+            }
+        }
+    }
 
-                    group_members.push(join.get_sender().clone());
-                }
+    fn handle_write_stream(
+        &self,
+        mut stream: TcpStream,
+        pulse_receiver: mpsc::Receiver<()>,
+        client_username: String,
+    ) {
+        let client = User::new(client_username);
+
+        while self.is_pulsing(&pulse_receiver) {
+            self.send_chat(&mut stream, &client);
+        }
+    }
+
+    fn queue_chat(&self, chat: Chat) {
+        match chat.get_receiver() {
+            People::User(user) => {
+                self.queue_user_chat(user.clone(), Arc::new(chat));
+            }
+            People::Group(group) => {
+                self.queue_group_chat(group.clone(), Arc::new(chat));
+            }
+        };
+    }
+
+    fn join_group(&self, join: Join) {
+        let mut group_member_lists = self.group_member_lists.lock().unwrap();
+        let group_members = group_member_lists
+            .entry(join.get_group().clone())
+            .or_insert(vec![]);
+
+        group_members.push(join.get_sender().clone());
+    }
+
+    fn send_chat(&self, stream: &mut TcpStream, client: &User) {
+        let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
+        let pending_chats = pending_chat_queues.get_mut(client);
+
+        if let Some(pending_chats) = pending_chats {
+            if let Some(chat) = pending_chats.pop_front() {
+                let chat = bincode::serialize(&*chat).unwrap();
+                stream.write(&chat[..]).unwrap();
             }
         }
     }
@@ -132,20 +161,9 @@ impl ServerInner {
             self.queue_user_chat(member.clone(), Arc::clone(&chat));
         }
     }
+}
 
-    fn handle_write_stream(
-        &self,
-        mut stream: TcpStream,
-        pulse_receiver: mpsc::Receiver<()>,
-        client_username: String,
-    ) {
-        let client = User::new(client_username);
-
-        while self.is_pulsing(&pulse_receiver) {
-            self.send_chat(&mut stream, &client);
-        }
-    }
-
+impl ServerInner {
     fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
         if let Err(pulse) = pulse_receiver.try_recv() {
             if let TryRecvError::Disconnected = pulse {
@@ -154,17 +172,5 @@ impl ServerInner {
         }
 
         true
-    }
-
-    fn send_chat(&self, stream: &mut TcpStream, client: &User) {
-        let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
-        let pending_chats = pending_chat_queues.get_mut(client);
-
-        if let Some(pending_chats) = pending_chats {
-            if let Some(chat) = pending_chats.pop_front() {
-                let chat = bincode::serialize(&*chat).unwrap();
-                stream.write(&chat[..]).unwrap();
-            }
-        }
     }
 }
