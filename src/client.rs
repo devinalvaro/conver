@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::io::{self, prelude::*};
 use std::net::TcpStream;
-use std::str;
+use std::str::{self, SplitWhitespace};
 use std::sync::mpsc::{self, TryRecvError};
 use std::sync::Arc;
 use std::thread;
@@ -81,7 +81,7 @@ impl ClientInner {
             }
 
             let chat: Chat = bincode::deserialize(&buffer[..]).unwrap();
-            println!("{}: {}", chat.get_sender(), chat.get_body());
+            println!("# {}: {}", chat.get_sender(), chat.get_body());
         }
     }
 
@@ -89,9 +89,64 @@ impl ClientInner {
         while self.is_pulsing(&pulse_receiver) {
             let message = self.read_message();
             self.send_message(&mut stream, message);
+            println!();
         }
     }
 
+    fn read_message(&self) -> Message {
+        let mut message = String::new();
+        io::stdin().read_line(&mut message).unwrap();
+        let mut message = message.split_whitespace();
+
+        let message_type = message.next().expect("invalid message format");
+        match message_type {
+            "CHAT" => Message::Chat(self.read_chat(message)),
+            "JOIN" => Message::Join(self.read_join(message)),
+            _ => panic!("unknown message type"),
+        }
+    }
+
+    fn send_message(&self, stream: &mut TcpStream, message: Message) {
+        let message = bincode::serialize(&message).unwrap();
+        stream.write(&message[..]).unwrap();
+    }
+
+    fn read_chat(&self, mut message: SplitWhitespace) -> Chat {
+        let receiver_type = message.next().expect("invalid message format");
+        let receiver = match receiver_type.trim() {
+            "USER" => {
+                let username = message.next().expect("invalid message format");
+                let username = username.trim().into();
+
+                People::User(User::new(username))
+            }
+            "GROUP" => {
+                let groupname = message.next().expect("invalid message format");
+                let groupname = groupname.trim().into();
+
+                People::Group(Group::new(groupname))
+            }
+            _ => panic!("unknown receiver type"),
+        };
+
+        print!("> ");
+        io::stdout().flush().unwrap();
+
+        let mut body = String::new();
+        io::stdin().read_line(&mut body).unwrap();
+
+        Chat::new(self.get_user(), receiver, body)
+    }
+
+    fn read_join(&self, mut message: SplitWhitespace) -> Join {
+        let groupname = message.next().expect("invalid message format");
+        let group = Group::new(groupname.into());
+
+        Join::new(self.get_user(), group)
+    }
+}
+
+impl ClientInner {
     fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
         if let Err(pulse) = pulse_receiver.try_recv() {
             if let TryRecvError::Disconnected = pulse {
@@ -102,72 +157,7 @@ impl ClientInner {
         true
     }
 
-    fn read_message(&self) -> Message {
-        let user = self.get_user();
-
-        let mut message_type = String::new();
-        io::stdin().read_line(&mut message_type).unwrap();
-        match message_type.trim() {
-            "CHAT" => {
-                let receiver = self.read_receiver();
-                let body = self.read_body();
-
-                Message::Chat(Chat::new(user, receiver, body))
-            }
-            "JOIN" => {
-                let group = self.read_group();
-
-                Message::Join(Join::new(user, group))
-            }
-            _ => panic!("unknown message type"),
-        }
-    }
-
     fn get_user(&self) -> User {
         User::new(self.username.clone())
-    }
-
-    fn read_receiver(&self) -> People {
-        let mut receiver_type = String::new();
-        io::stdin().read_line(&mut receiver_type).unwrap();
-        match receiver_type.trim() {
-            "USER" => {
-                let receiver = self.read_user();
-
-                People::User(receiver)
-            }
-            "GROUP" => {
-                let receiver = self.read_group();
-
-                People::Group(receiver)
-            }
-            _ => panic!("unknown receiver type"),
-        }
-    }
-
-    fn read_user(&self) -> User {
-        let mut username = String::new();
-        io::stdin().read_line(&mut username).unwrap();
-
-        User::new(username.trim().into())
-    }
-
-    fn read_group(&self) -> Group {
-        let mut groupname = String::new();
-        io::stdin().read_line(&mut groupname).unwrap();
-
-        Group::new(groupname.trim().into())
-    }
-
-    fn read_body(&self) -> String {
-        let mut body = String::new();
-        io::stdin().read_line(&mut body).unwrap();
-
-        body
-    }
-
-    fn send_message(&self, stream: &mut TcpStream, message: Message) {
-        let message = bincode::serialize(&message).unwrap();
-        stream.write(&message[..]).unwrap();
     }
 }
