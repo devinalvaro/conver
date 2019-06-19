@@ -9,7 +9,6 @@ use std::thread;
 use bincode;
 
 use crate::message::{Chat, Message};
-use crate::people::User;
 
 mod parser;
 
@@ -36,8 +35,8 @@ impl<'a> Client<'a> {
             server_port,
 
             inner: Arc::new(ClientInner {
-                username,
-                parser: Parser::new(),
+                username: username.clone(),
+                parser: Parser::new(username),
             }),
         }
     }
@@ -92,7 +91,9 @@ impl ClientInner {
             println!("# {}: {}", chat.get_sender(), chat.get_body());
         }
     }
+}
 
+impl ClientInner {
     fn handle_write_stream(&self, mut stream: TcpStream, pulse_receiver: mpsc::Receiver<()>) {
         while self.is_pulsing(&pulse_receiver) {
             let message = self.parser.read_message();
@@ -101,13 +102,6 @@ impl ClientInner {
         }
     }
 
-    fn send_message(&self, stream: &mut TcpStream, message: Message) {
-        let message = bincode::serialize(&message).unwrap();
-        stream.write(&message[..]).unwrap();
-    }
-}
-
-impl ClientInner {
     fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
         if let Err(pulse) = pulse_receiver.try_recv() {
             if let TryRecvError::Disconnected = pulse {
@@ -118,7 +112,8 @@ impl ClientInner {
         true
     }
 
-    fn get_user(&self) -> User {
-        User::new(self.username.clone())
+    fn send_message(&self, stream: &mut TcpStream, message: Message) {
+        let message = bincode::serialize(&message).unwrap();
+        stream.write(&message[..]).unwrap();
     }
 }

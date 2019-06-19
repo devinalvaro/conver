@@ -4,11 +4,17 @@ use std::str::SplitWhitespace;
 use crate::message::{Chat, Join, Leave, Message};
 use crate::people::{Group, People, User};
 
-pub struct Parser {}
+pub struct Parser {
+    username: String,
+}
 
 impl Parser {
-    pub fn new() -> Self {
-        Parser {}
+    pub fn new(username: String) -> Self {
+        Parser { username }
+    }
+
+    fn get_user(&self) -> User {
+        User::new(self.username.clone())
     }
 
     pub fn read_message(&self) -> Message {

@@ -98,19 +98,6 @@ impl ServerInner {
         }
     }
 
-    fn handle_write_stream(
-        &self,
-        mut stream: TcpStream,
-        pulse_receiver: mpsc::Receiver<()>,
-        client_username: String,
-    ) {
-        let client = User::new(client_username);
-
-        while self.is_pulsing(&pulse_receiver) {
-            self.send_chat(&mut stream, &client);
-        }
-    }
-
     fn queue_chat(&self, chat: Chat) {
         match chat.get_receiver() {
             People::User(user) => {
@@ -140,18 +127,6 @@ impl ServerInner {
         group_members.remove(leave.get_sender());
     }
 
-    fn send_chat(&self, stream: &mut TcpStream, client: &User) {
-        let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
-        let pending_chats = pending_chat_queues.get_mut(client);
-
-        if let Some(pending_chats) = pending_chats {
-            if let Some(chat) = pending_chats.pop_front() {
-                let chat = bincode::serialize(&*chat).unwrap();
-                stream.write(&chat[..]).unwrap();
-            }
-        }
-    }
-
     fn queue_user_chat(&self, user: User, chat: Arc<Chat>) {
         let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
         let pending_chats = pending_chat_queues
@@ -178,6 +153,19 @@ impl ServerInner {
 }
 
 impl ServerInner {
+    fn handle_write_stream(
+        &self,
+        mut stream: TcpStream,
+        pulse_receiver: mpsc::Receiver<()>,
+        client_username: String,
+    ) {
+        let client = User::new(client_username);
+
+        while self.is_pulsing(&pulse_receiver) {
+            self.send_chat(&mut stream, &client);
+        }
+    }
+
     fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
         if let Err(pulse) = pulse_receiver.try_recv() {
             if let TryRecvError::Disconnected = pulse {
@@ -186,5 +174,17 @@ impl ServerInner {
         }
 
         true
+    }
+
+    fn send_chat(&self, stream: &mut TcpStream, client: &User) {
+        let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
+        let pending_chats = pending_chat_queues.get_mut(client);
+
+        if let Some(pending_chats) = pending_chats {
+            if let Some(chat) = pending_chats.pop_front() {
+                let chat = bincode::serialize(&*chat).unwrap();
+                stream.write(&chat[..]).unwrap();
+            }
+        }
     }
 }
