@@ -1,4 +1,4 @@
-use std::collections::{vec_deque::VecDeque, HashMap};
+use std::collections::{vec_deque::VecDeque, HashMap, HashSet};
 use std::error::Error;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
@@ -20,7 +20,7 @@ pub struct Server<'a> {
 }
 
 struct ServerInner {
-    group_member_lists: Mutex<HashMap<Group, Vec<User>>>,
+    group_member_lists: Mutex<HashMap<Group, HashSet<User>>>,
     pending_chat_queues: Mutex<HashMap<User, VecDeque<Arc<Chat>>>>,
 }
 
@@ -125,9 +125,9 @@ impl ServerInner {
         let mut group_member_lists = self.group_member_lists.lock().unwrap();
         let group_members = group_member_lists
             .entry(join.get_group().clone())
-            .or_insert(vec![]);
+            .or_insert_with(|| HashSet::new());
 
-        group_members.push(join.get_sender().clone());
+        group_members.insert(join.get_sender().clone());
     }
 
     fn send_chat(&self, stream: &mut TcpStream, client: &User) {
@@ -144,16 +144,20 @@ impl ServerInner {
 
     fn queue_user_chat(&self, user: User, chat: Arc<Chat>) {
         let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
-        let pending_chats = pending_chat_queues.entry(user).or_insert(VecDeque::new());
+        let pending_chats = pending_chat_queues
+            .entry(user)
+            .or_insert_with(|| VecDeque::new());
 
         pending_chats.push_back(chat);
     }
 
     fn queue_group_chat(&self, group: Group, chat: Arc<Chat>) {
         let mut group_member_lists = self.group_member_lists.lock().unwrap();
-        let group_members = group_member_lists.entry(group).or_insert(vec![]);
+        let group_members = group_member_lists
+            .entry(group)
+            .or_insert_with(|| HashSet::new());
 
-        for member in group_members {
+        for member in group_members.iter() {
             if member == chat.get_sender() {
                 continue;
             }
