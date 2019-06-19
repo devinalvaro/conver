@@ -6,6 +6,7 @@ use crate::people::{Group, People, User};
 pub enum Message {
     Chat(Chat),
     Join(Join),
+    Leave(Leave),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -46,6 +47,26 @@ pub struct Join {
 impl Join {
     pub fn new(sender: User, group: Group) -> Self {
         Join { sender, group }
+    }
+
+    pub fn get_sender(&self) -> &User {
+        &self.sender
+    }
+
+    pub fn get_group(&self) -> &Group {
+        &self.group
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Leave {
+    sender: User,
+    group: Group,
+}
+
+impl Leave {
+    pub fn new(sender: User, group: Group) -> Self {
+        Leave { sender, group }
     }
 
     pub fn get_sender(&self) -> &User {

@@ -8,7 +8,7 @@ use std::thread;
 
 use bincode;
 
-use crate::message::{Chat, Join, Message};
+use crate::message::{Chat, Join, Leave, Message};
 use crate::people::{Group, People, User};
 
 type Buffer = [u8; 4096];
@@ -102,6 +102,7 @@ impl ClientInner {
         match message_type {
             "CHAT" => Message::Chat(self.read_chat(message)),
             "JOIN" => Message::Join(self.read_join(message)),
+            "LEAVE" => Message::Leave(self.read_leave(message)),
             _ => panic!("unknown message type"),
         }
     }
@@ -143,6 +144,13 @@ impl ClientInner {
         let group = Group::new(groupname.into());
 
         Join::new(self.get_user(), group)
+    }
+
+    fn read_leave(&self, mut message: SplitWhitespace) -> Leave {
+        let groupname = message.next().expect("invalid message format");
+        let group = Group::new(groupname.into());
+
+        Leave::new(self.get_user(), group)
     }
 }
 

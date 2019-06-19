@@ -9,7 +9,7 @@ use std::thread;
 
 use bincode;
 
-use crate::message::{Chat, Join, Message};
+use crate::message::{Chat, Join, Leave, Message};
 use crate::people::{Group, People, User};
 
 pub struct Server<'a> {
@@ -93,6 +93,7 @@ impl ServerInner {
             match message {
                 Message::Chat(chat) => self.queue_chat(chat),
                 Message::Join(join) => self.join_group(join),
+                Message::Leave(leave) => self.leave_group(leave),
             }
         }
     }
@@ -128,6 +129,15 @@ impl ServerInner {
             .or_insert_with(|| HashSet::new());
 
         group_members.insert(join.get_sender().clone());
+    }
+
+    fn leave_group(&self, leave: Leave) {
+        let mut group_member_lists = self.group_member_lists.lock().unwrap();
+        let group_members = group_member_lists
+            .entry(leave.get_group().clone())
+            .or_insert_with(|| HashSet::new());
+
+        group_members.remove(leave.get_sender());
     }
 
     fn send_chat(&self, stream: &mut TcpStream, client: &User) {
