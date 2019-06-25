@@ -12,6 +12,8 @@ use bincode;
 use crate::message::{Chat, Join, Leave, Message};
 use crate::people::{Group, People, User};
 
+pub type Buffer = [u8; 4096];
+
 pub struct Server<'a> {
     host: &'a str,
     port: &'a str,
@@ -23,8 +25,6 @@ struct ServerInner {
     group_member_lists: Mutex<HashMap<Group, HashSet<User>>>,
     pending_chat_queues: Mutex<HashMap<User, VecDeque<Arc<Chat>>>>,
 }
-
-pub type Buffer = [u8; 4096];
 
 impl<'a> Server<'a> {
     pub fn new(host: &'a str, port: &'a str) -> Self {
@@ -48,15 +48,15 @@ impl<'a> Server<'a> {
 
             let mut buffer: Buffer = [0; 4096];
             stream.read(&mut buffer)?;
-            let username = bincode::deserialize(&buffer[..])?;
+            let user = bincode::deserialize(&buffer[..])?;
 
-            self.handle_stream(stream, username)?;
+            self.handle_stream(stream, user)?;
         }
 
         Ok(())
     }
 
-    fn handle_stream(&self, stream: TcpStream, username: String) -> Result<(), Box<dyn Error>> {
+    fn handle_stream(&self, stream: TcpStream, user: User) -> Result<(), Box<dyn Error>> {
         let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
             mpsc::channel();
 
@@ -66,9 +66,7 @@ impl<'a> Server<'a> {
 
         let write_stream = stream;
         let write_inner = Arc::clone(&self.inner);
-        thread::spawn(move || {
-            write_inner.handle_write_stream(write_stream, pulse_receiver, username)
-        });
+        thread::spawn(move || write_inner.handle_write_stream(write_stream, pulse_receiver, user));
 
         Ok(())
     }
@@ -150,10 +148,8 @@ impl ServerInner {
         &self,
         mut stream: TcpStream,
         pulse_receiver: mpsc::Receiver<()>,
-        username: String,
+        user: User,
     ) {
-        let user = User::new(username);
-
         while self.is_pulsing(&pulse_receiver) {
             self.send_pending_chat(&mut stream, &user);
         }

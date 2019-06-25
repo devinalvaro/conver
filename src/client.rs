@@ -20,8 +20,10 @@ impl Client {
         let mut stream = TcpStream::connect(address)?;
 
         let user = User::new(username.into());
-        let username = bincode::serialize(username)?;
-        stream.write(&username[..])?;
+        {
+            let user = bincode::serialize(&user)?;
+            stream.write(&user[..])?;
+        }
 
         Ok(Client { user, stream })
     }
