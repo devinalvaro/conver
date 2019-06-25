@@ -56,13 +56,9 @@ fn test_group() {
     let mut second_client = common::create_client(&second_user);
     let mut third_client = common::create_client(&third_user);
 
-    // TODO: find out why it's necessary to sleep briefly between sending messages
     first_client.send_message(Message::Join(common::create_join(&first_user, &group)));
-    thread::sleep(time::Duration::from_millis(1));
     second_client.send_message(Message::Join(common::create_join(&second_user, &group)));
-    thread::sleep(time::Duration::from_millis(1));
     third_client.send_message(Message::Join(common::create_join(&third_user, &group)));
-    thread::sleep(time::Duration::from_millis(1));
 
     let chat = common::generate_group_chat(&first_user, &group);
     first_client.send_message(Message::Chat(chat.clone()));
@@ -75,8 +71,6 @@ fn test_group() {
 
 #[test]
 fn test_group_pending() {
-    // TODO: find out why this case fails intermittently
-
     let _shared = common::TEST_LOCK.lock().unwrap();
 
     let group = common::generate_group();
@@ -87,11 +81,8 @@ fn test_group_pending() {
     let mut first_client = common::create_client(&first_user);
     let mut second_client = common::create_client(&second_user);
 
-    // Due to an unknown reason, it's necessary to sleep briefly between sending messages
     first_client.send_message(Message::Join(common::create_join(&first_user, &group)));
-    thread::sleep(time::Duration::from_millis(1));
     second_client.send_message(Message::Join(common::create_join(&second_user, &group)));
-    thread::sleep(time::Duration::from_millis(1));
 
     // Third joins the disconnects
     let third_user = common::generate_user();
@@ -99,7 +90,6 @@ fn test_group_pending() {
         let mut third_client = common::create_client(&third_user);
 
         third_client.send_message(Message::Join(common::create_join(&third_user, &group)));
-        thread::sleep(time::Duration::from_millis(1));
     }
 
     let chat = common::generate_group_chat(&first_user, &group);
