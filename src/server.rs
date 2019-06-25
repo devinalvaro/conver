@@ -24,7 +24,7 @@ struct ServerInner {
     pending_chat_queues: Mutex<HashMap<User, VecDeque<Arc<Chat>>>>,
 }
 
-type Buffer = [u8; 4096];
+pub type Buffer = [u8; 4096];
 
 impl<'a> Server<'a> {
     pub fn new(host: &'a str, port: &'a str) -> Self {
@@ -45,25 +45,18 @@ impl<'a> Server<'a> {
 
         for stream in listener.incoming() {
             let mut stream = stream?;
-            let client_username = self.read_client_username(&mut stream)?;
-            self.handle_stream(stream, client_username)?;
+
+            let mut buffer: Buffer = [0; 4096];
+            stream.read(&mut buffer)?;
+            let username = bincode::deserialize(&buffer[..])?;
+
+            self.handle_streams(stream, username)?;
         }
 
         Ok(())
     }
 
-    fn read_client_username(&self, stream: &mut TcpStream) -> Result<String, Box<dyn Error>> {
-        let mut buffer: Buffer = [0; 4096];
-        stream.read(&mut buffer)?;
-
-        Ok(bincode::deserialize(&buffer[..])?)
-    }
-
-    fn handle_stream(
-        &self,
-        stream: TcpStream,
-        client_username: String,
-    ) -> Result<(), Box<dyn Error>> {
+    fn handle_streams(&self, stream: TcpStream, username: String) -> Result<(), Box<dyn Error>> {
         let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
             mpsc::channel();
 
@@ -74,7 +67,7 @@ impl<'a> Server<'a> {
         let write_stream = stream;
         let write_inner = Arc::clone(&self.inner);
         thread::spawn(move || {
-            write_inner.handle_write_stream(write_stream, pulse_receiver, client_username)
+            write_inner.handle_write_stream(write_stream, pulse_receiver, username)
         });
 
         Ok(())
@@ -89,7 +82,7 @@ impl ServerInner {
                 break;
             }
 
-            let message: Message = bincode::deserialize(&buffer[..]).unwrap();
+            let message = bincode::deserialize(&buffer[..]).unwrap();
             match message {
                 Message::Chat(chat) => self.queue_chat(chat),
                 Message::Join(join) => self.join_group(join),
@@ -157,12 +150,12 @@ impl ServerInner {
         &self,
         mut stream: TcpStream,
         pulse_receiver: mpsc::Receiver<()>,
-        client_username: String,
+        username: String,
     ) {
-        let client = User::new(client_username);
+        let user = User::new(username);
 
         while self.is_pulsing(&pulse_receiver) {
-            self.send_chat(&mut stream, &client);
+            self.send_pending_chat(&mut stream, &user);
         }
     }
 
@@ -176,9 +169,9 @@ impl ServerInner {
         true
     }
 
-    fn send_chat(&self, stream: &mut TcpStream, client: &User) {
+    fn send_pending_chat(&self, stream: &mut TcpStream, user: &User) {
         let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
-        let pending_chats = pending_chat_queues.get_mut(client);
+        let pending_chats = pending_chat_queues.get_mut(user);
 
         if let Some(pending_chats) = pending_chats {
             if let Some(chat) = pending_chats.pop_front() {
