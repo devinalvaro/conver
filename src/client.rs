@@ -44,6 +44,12 @@ impl Client {
     }
 
     pub fn send_message(&mut self, message: Message) {
+        match message {
+            Message::Chat(ref chat) => assert_eq!(&self.user, chat.get_sender()),
+            Message::Join(ref join) => assert_eq!(&self.user, join.get_sender()),
+            Message::Leave(ref leave) => assert_eq!(&self.user, leave.get_sender()),
+        };
+
         let message = bincode::serialize(&message).unwrap();
         self.stream.write(&message[..]).unwrap();
     }

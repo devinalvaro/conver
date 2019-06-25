@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum People {
     User(User),
     Group(Group),
@@ -16,6 +16,10 @@ pub struct User {
 impl User {
     pub fn new(username: String) -> Self {
         User { username }
+    }
+
+    pub fn get_username(&self) -> &String {
+        &self.username
     }
 }
 
@@ -33,5 +37,9 @@ pub struct Group {
 impl Group {
     pub fn new(groupname: String) -> Self {
         Group { groupname }
+    }
+
+    pub fn get_groupname(&self) -> &String {
+        &self.groupname
     }
 }

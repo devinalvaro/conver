@@ -8,3 +8,7 @@ edition = "2018"
 bincode = "1.1.4"
 clap = "2.33.0"
 serde = { version = "1.0.92", features = ["derive"] }
+
+[dev-dependencies]
+lazy_static = "1.3.0"
+rand = "0.6.5"
