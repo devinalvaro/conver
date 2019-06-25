@@ -50,13 +50,13 @@ impl<'a> Server<'a> {
             stream.read(&mut buffer)?;
             let username = bincode::deserialize(&buffer[..])?;
 
-            self.handle_streams(stream, username)?;
+            self.handle_stream(stream, username)?;
         }
 
         Ok(())
     }
 
-    fn handle_streams(&self, stream: TcpStream, username: String) -> Result<(), Box<dyn Error>> {
+    fn handle_stream(&self, stream: TcpStream, username: String) -> Result<(), Box<dyn Error>> {
         let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) =
             mpsc::channel();
 

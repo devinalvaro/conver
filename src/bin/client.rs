@@ -43,17 +43,17 @@ fn main() {
     let username = matches.value_of("username").unwrap().to_string();
 
     let client = Client::new(host, port, &username).unwrap();
-    handle_loops(client).unwrap();
+    handle_stream(client).unwrap();
 }
 
-fn handle_loops(client: Client) -> Result<(), Box<dyn Error>> {
+fn handle_stream(client: Client) -> Result<(), Box<dyn Error>> {
     let (pulse_sender, pulse_receiver): (mpsc::Sender<()>, mpsc::Receiver<()>) = mpsc::channel();
 
     let read_client = client.try_clone()?;
-    let read_handler = thread::spawn(move || handle_read_loop(read_client, pulse_sender));
+    let read_handler = thread::spawn(move || handle_read_stream(read_client, pulse_sender));
 
     let write_client = client;
-    let write_handler = thread::spawn(move || handle_write_loop(write_client, pulse_receiver));
+    let write_handler = thread::spawn(move || handle_write_stream(write_client, pulse_receiver));
 
     write_handler.join().unwrap();
     read_handler.join().unwrap();
@@ -61,13 +61,13 @@ fn handle_loops(client: Client) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn handle_read_loop(mut client: Client, _pulse_sender: mpsc::Sender<()>) {
+fn handle_read_stream(mut client: Client, _pulse_sender: mpsc::Sender<()>) {
     while let Some(chat) = client.read_chat() {
         println!("# {}: {}", chat.get_sender(), chat.get_body());
     }
 }
 
-fn handle_write_loop(mut client: Client, pulse_receiver: mpsc::Receiver<()>) {
+fn handle_write_stream(mut client: Client, pulse_receiver: mpsc::Receiver<()>) {
     let parser = Parser::new(client.get_user().clone());
 
     while is_pulsing(&pulse_receiver) {
