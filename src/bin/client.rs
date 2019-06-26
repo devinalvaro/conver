@@ -62,7 +62,8 @@ fn handle_stream(client: Client) -> Result<(), Box<dyn Error>> {
 }
 
 fn handle_read_stream(mut client: Client, _pulse_sender: mpsc::Sender<()>) {
-    while let Some(chat) = client.read_chat() {
+    loop {
+        let chat = client.read_chat().unwrap();
         println!("# {}: {}", chat.get_sender(), chat.get_body());
     }
 }
@@ -79,7 +80,6 @@ fn handle_write_stream(mut client: Client, pulse_receiver: mpsc::Receiver<()>) {
             .next()
             .ok_or(ParseError::method_type_not_found())
             .unwrap();
-
         let body = if method_type == "CHAT" {
             print!("> ");
             io::stdout().flush().unwrap();
@@ -93,8 +93,7 @@ fn handle_write_stream(mut client: Client, pulse_receiver: mpsc::Receiver<()>) {
         };
 
         let message = parser.parse_message(header, body).unwrap();
-
-        client.send_message(message);
+        client.send_message(message).unwrap();
         println!();
     }
 }

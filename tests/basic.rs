@@ -1,5 +1,3 @@
-use std::{thread, time};
-
 use conver::message::Message;
 
 mod common;
@@ -15,12 +13,16 @@ fn test_chat() {
     let mut second_client = common::create_client(&second_user);
 
     let chat = common::generate_chat(&first_user, &second_user);
-    first_client.send_message(Message::Chat(chat.clone()));
+    first_client
+        .send_message(Message::Chat(chat.clone()))
+        .unwrap();
     let sent = second_client.read_chat().unwrap();
     assert_eq!(chat, sent);
 
     let chat = common::generate_chat(&second_user, &first_user);
-    second_client.send_message(Message::Chat(chat.clone()));
+    second_client
+        .send_message(Message::Chat(chat.clone()))
+        .unwrap();
     let sent = first_client.read_chat().unwrap();
     assert_eq!(chat, sent);
 }
@@ -34,7 +36,9 @@ fn test_chat_pending() {
 
     let mut first_client = common::create_client(&first_user);
     let chat = common::generate_chat(&first_user, &second_user);
-    first_client.send_message(Message::Chat(chat.clone()));
+    first_client
+        .send_message(Message::Chat(chat.clone()))
+        .unwrap();
 
     // Second connects after being sent a message
     let mut second_client = common::create_client(&second_user);
@@ -56,12 +60,20 @@ fn test_group() {
     let mut second_client = common::create_client(&second_user);
     let mut third_client = common::create_client(&third_user);
 
-    first_client.send_message(Message::Join(common::create_join(&first_user, &group)));
-    second_client.send_message(Message::Join(common::create_join(&second_user, &group)));
-    third_client.send_message(Message::Join(common::create_join(&third_user, &group)));
+    first_client
+        .send_message(Message::Join(common::create_join(&first_user, &group)))
+        .unwrap();
+    second_client
+        .send_message(Message::Join(common::create_join(&second_user, &group)))
+        .unwrap();
+    third_client
+        .send_message(Message::Join(common::create_join(&third_user, &group)))
+        .unwrap();
 
     let chat = common::generate_group_chat(&first_user, &group);
-    first_client.send_message(Message::Chat(chat.clone()));
+    first_client
+        .send_message(Message::Chat(chat.clone()))
+        .unwrap();
 
     let sent = second_client.read_chat().unwrap();
     assert_eq!(chat, sent);
@@ -81,19 +93,27 @@ fn test_group_pending() {
     let mut first_client = common::create_client(&first_user);
     let mut second_client = common::create_client(&second_user);
 
-    first_client.send_message(Message::Join(common::create_join(&first_user, &group)));
-    second_client.send_message(Message::Join(common::create_join(&second_user, &group)));
+    first_client
+        .send_message(Message::Join(common::create_join(&first_user, &group)))
+        .unwrap();
+    second_client
+        .send_message(Message::Join(common::create_join(&second_user, &group)))
+        .unwrap();
 
-    // Third joins the disconnects
+    // Third joins then disconnects
     let third_user = common::generate_user();
     {
         let mut third_client = common::create_client(&third_user);
 
-        third_client.send_message(Message::Join(common::create_join(&third_user, &group)));
+        third_client
+            .send_message(Message::Join(common::create_join(&third_user, &group)))
+            .unwrap();
     }
 
     let chat = common::generate_group_chat(&first_user, &group);
-    first_client.send_message(Message::Chat(chat.clone()));
+    first_client
+        .send_message(Message::Chat(chat.clone()))
+        .unwrap();
 
     // Third reconnects
     let mut third_client = common::create_client(&third_user);
