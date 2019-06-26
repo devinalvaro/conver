@@ -77,7 +77,7 @@ fn test_group() {
         .unwrap();
 
     // This is to ensure all users have joined the group
-    thread::sleep(time::Duration::from_millis(1));
+    thread::sleep(time::Duration::from_millis(10));
 
     // First sends a chat to the group
     let chat = common::generate_group_chat(&first_user, &group);
@@ -122,7 +122,7 @@ fn test_group_pending() {
     }
 
     // This is to ensure all users have joined the group
-    thread::sleep(time::Duration::from_millis(1));
+    thread::sleep(time::Duration::from_millis(10));
 
     // First sends a chat to the group
     let chat = common::generate_group_chat(&first_user, &group);
