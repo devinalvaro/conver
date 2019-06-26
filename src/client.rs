@@ -49,17 +49,19 @@ impl Client {
         &self.user
     }
 
-    pub fn read_chat(&mut self) -> io::Result<Chat> {
+    pub fn read_chat(&mut self) -> Result<Chat, Box<dyn Error>> {
         let mut buf: Buffer = [0; BUFFER_SIZE];
         loop {
             let n = self.stream.read(&mut buf).unwrap();
             if n == 0 {
-                return Err(io::Error::new(
+                // disconnect
+                return Err(Box::new(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
                     "connection was aborted while reading chat",
-                ));
+                )));
             }
             if n != buf.len() {
+                // retry
                 continue;
             }
 
@@ -69,7 +71,7 @@ impl Client {
         Ok(bincode::deserialize(&buf[..]).unwrap())
     }
 
-    pub fn send_message(&mut self, message: Message) -> io::Result<()> {
+    pub fn send_message(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
         match message {
             Message::Chat(ref chat) => assert_eq!(&self.user, chat.get_sender()),
             Message::Join(ref join) => assert_eq!(&self.user, join.get_sender()),
@@ -81,12 +83,14 @@ impl Client {
         loop {
             let n = self.stream.write(&buf).unwrap();
             if n == 0 {
-                return Err(io::Error::new(
+                // disconnect
+                return Err(Box::new(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
                     "connection was aborted while sending message",
-                ));
+                )));
             }
             if n == buf.len() {
+                // retry
                 break;
             }
         }
