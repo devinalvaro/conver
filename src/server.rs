@@ -9,10 +9,9 @@ use std::thread;
 
 use bincode;
 
+use crate::buffer::{self, Buffer, BUFFER_SIZE};
 use crate::message::{Chat, Join, Leave, Message};
 use crate::people::{Group, People, User};
-
-pub type Buffer = [u8; 4096];
 
 pub struct Server<'a> {
     host: &'a str,
@@ -46,9 +45,9 @@ impl<'a> Server<'a> {
         for stream in listener.incoming() {
             let mut stream = stream?;
 
-            let mut buffer: Buffer = [0; 4096];
-            stream.read(&mut buffer)?;
-            let user = bincode::deserialize(&buffer[..])?;
+            let mut buf: Buffer = [0; BUFFER_SIZE];
+            stream.read(&mut buf)?;
+            let user = bincode::deserialize(&buf[..])?;
 
             self.handle_stream(stream, user)?;
         }
@@ -75,12 +74,12 @@ impl<'a> Server<'a> {
 impl ServerInner {
     fn handle_read_stream(&self, mut stream: TcpStream, _pulse_sender: mpsc::Sender<()>) {
         loop {
-            let mut buffer: Buffer = [0; 4096];
-            if stream.read(&mut buffer).unwrap() == 0 {
+            let mut buf: Buffer = [0; BUFFER_SIZE];
+            if stream.read(&mut buf).unwrap() == 0 {
                 break;
             }
 
-            let message = bincode::deserialize(&buffer[..]).unwrap();
+            let message = bincode::deserialize(&buf[..]).unwrap();
             match message {
                 Message::Chat(chat) => self.queue_chat(chat),
                 Message::Join(join) => self.join_group(join),
@@ -172,7 +171,8 @@ impl ServerInner {
         if let Some(pending_chats) = pending_chats {
             if let Some(chat) = pending_chats.pop_front() {
                 let chat = bincode::serialize(&*chat).unwrap();
-                stream.write(&chat[..]).unwrap();
+                let buf = buffer::from_vec(chat);
+                stream.write(&buf).unwrap();
             }
         }
     }

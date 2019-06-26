@@ -5,9 +5,9 @@ use std::str;
 
 use bincode;
 
+use crate::buffer::{self, Buffer, BUFFER_SIZE};
 use crate::message::{Chat, Message};
 use crate::people::User;
-use crate::server::Buffer;
 
 pub struct Client {
     user: User,
@@ -22,7 +22,8 @@ impl Client {
         let user = User::new(username.into());
         {
             let user = bincode::serialize(&user)?;
-            stream.write(&user[..])?;
+            let buf = buffer::from_vec(user);
+            stream.write(&buf)?;
         }
 
         Ok(Client { user, stream })
@@ -36,12 +37,11 @@ impl Client {
     }
 
     pub fn read_chat(&mut self) -> Option<Chat> {
-        let mut buffer: Buffer = [0; 4096];
-
-        if self.stream.read(&mut buffer).unwrap() == 0 {
+        let mut buf: Buffer = [0; BUFFER_SIZE];
+        if self.stream.read(&mut buf).unwrap() == 0 {
             None
         } else {
-            Some(bincode::deserialize(&buffer[..]).unwrap())
+            Some(bincode::deserialize(&buf[..]).unwrap())
         }
     }
 
@@ -53,7 +53,8 @@ impl Client {
         };
 
         let message = bincode::serialize(&message).unwrap();
-        self.stream.write(&message[..]).unwrap();
+        let buf = buffer::from_vec(message);
+        self.stream.write(&buf).unwrap();
     }
 
     pub fn get_user(&self) -> &User {
