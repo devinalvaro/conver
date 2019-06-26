@@ -46,7 +46,9 @@ impl<'a> Server<'a> {
             let mut stream = stream?;
 
             let mut buf: Buffer = [0; BUFFER_SIZE];
-            stream.read(&mut buf)?;
+            if stream.read(&mut buf)? != buf.len() {
+                continue;
+            }
             let user = bincode::deserialize(&buf[..])?;
 
             self.handle_stream(stream, user)?;
@@ -73,10 +75,16 @@ impl<'a> Server<'a> {
 
 impl ServerInner {
     fn handle_read_stream(&self, mut stream: TcpStream, _pulse_sender: mpsc::Sender<()>) {
+        let mut buf: Buffer = [0; BUFFER_SIZE];
         loop {
-            let mut buf: Buffer = [0; BUFFER_SIZE];
-            if stream.read(&mut buf).unwrap() == 0 {
+            let n = stream.read(&mut buf).unwrap();
+            if n == 0 {
+                // disconnect
                 break;
+            }
+            if n != buf.len() {
+                // retry
+                continue;
             }
 
             let message = bincode::deserialize(&buf[..]).unwrap();
@@ -136,7 +144,6 @@ impl ServerInner {
             if member == chat.get_sender() {
                 continue;
             }
-
             self.queue_user_chat(member.clone(), Arc::clone(&chat));
         }
     }
@@ -169,11 +176,18 @@ impl ServerInner {
         let pending_chats = pending_chat_queues.get_mut(user);
 
         if let Some(pending_chats) = pending_chats {
-            if let Some(chat) = pending_chats.pop_front() {
-                let chat = bincode::serialize(&*chat).unwrap();
-                let buf = buffer::from_vec(chat);
-                stream.write(&buf).unwrap();
+            if let Some(chat) = pending_chats.front() {
+                if self.write_chat(stream, chat) {
+                    pending_chats.pop_front();
+                }
             }
         }
+    }
+
+    fn write_chat(&self, stream: &mut TcpStream, chat: &Chat) -> bool {
+        let chat = bincode::serialize(&*chat).unwrap();
+        let buf = buffer::from_vec(chat);
+
+        stream.write(&buf).unwrap() == buf.len()
     }
 }
