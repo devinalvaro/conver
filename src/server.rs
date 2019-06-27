@@ -86,7 +86,6 @@ impl ServerInner {
                 // retry
                 continue;
             }
-
             let message = bincode::deserialize(&buf[..]).unwrap();
             match message {
                 Message::Chat(chat) => self.queue_chat(chat),
@@ -99,10 +98,10 @@ impl ServerInner {
     fn queue_chat(&self, chat: Chat) {
         match chat.get_receiver() {
             People::User(user) => {
-                self.queue_user_chat(user.clone(), Arc::new(chat));
+                self.queue_user_chat(&user.clone(), Arc::new(chat));
             }
             People::Group(group) => {
-                self.queue_group_chat(group.clone(), Arc::new(chat));
+                self.queue_group_chat(&group.clone(), Arc::new(chat));
             }
         };
     }
@@ -125,26 +124,26 @@ impl ServerInner {
         group_members.remove(leave.get_sender());
     }
 
-    fn queue_user_chat(&self, user: User, chat: Arc<Chat>) {
+    fn queue_user_chat(&self, user: &User, chat: Arc<Chat>) {
         let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
         let pending_chats = pending_chat_queues
-            .entry(user)
+            .entry(user.clone())
             .or_insert_with(|| VecDeque::new());
 
         pending_chats.push_back(chat);
     }
 
-    fn queue_group_chat(&self, group: Group, chat: Arc<Chat>) {
+    fn queue_group_chat(&self, group: &Group, chat: Arc<Chat>) {
         let mut group_member_lists = self.group_member_lists.lock().unwrap();
         let group_members = group_member_lists
-            .entry(group)
+            .entry(group.clone())
             .or_insert_with(|| HashSet::new());
 
         for member in group_members.iter() {
             if member == chat.get_sender() {
                 continue;
             }
-            self.queue_user_chat(member.clone(), Arc::clone(&chat));
+            self.queue_user_chat(member, Arc::clone(&chat));
         }
     }
 }
@@ -159,16 +158,6 @@ impl ServerInner {
         while self.is_pulsing(&pulse_receiver) {
             self.send_pending_chat(&mut stream, &user);
         }
-    }
-
-    fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
-        if let Err(pulse) = pulse_receiver.try_recv() {
-            if let TryRecvError::Disconnected = pulse {
-                return false;
-            }
-        }
-
-        true
     }
 
     fn send_pending_chat(&self, stream: &mut TcpStream, user: &User) {
@@ -187,7 +176,15 @@ impl ServerInner {
     fn write_chat(&self, stream: &mut TcpStream, chat: &Chat) -> bool {
         let chat = bincode::serialize(&*chat).unwrap();
         let buf = buffer::from_vec(chat);
-
         stream.write(&buf).unwrap() == buf.len()
+    }
+
+    fn is_pulsing(&self, pulse_receiver: &mpsc::Receiver<()>) -> bool {
+        if let Err(pulse) = pulse_receiver.try_recv() {
+            if let TryRecvError::Disconnected = pulse {
+                return false;
+            }
+        }
+        true
     }
 }

@@ -7,6 +7,5 @@ pub fn from_vec(bytes: Vec<u8>) -> Buffer {
     for (place, byte) in buf.iter_mut().zip(bytes.iter()) {
         *place = *byte;
     }
-
     buf
 }

@@ -10,7 +10,7 @@ use conver::people::People;
 
 mod parser;
 
-use parser::{ParseError, Parser};
+use parser::Parser;
 
 fn main() {
     let matches = App::new("Point Client")
@@ -56,8 +56,8 @@ fn handle_stream(client: Client) -> Result<(), Box<dyn Error>> {
     let write_client = client;
     let write_handler = thread::spawn(move || handle_write_stream(write_client, pulse_receiver));
 
-    write_handler.join().unwrap();
     read_handler.join().unwrap();
+    write_handler.join().unwrap();
 
     Ok(())
 }
@@ -66,12 +66,9 @@ fn handle_read_stream(mut client: Client, _pulse_sender: mpsc::Sender<()>) {
     loop {
         let chat = client.read_chat().unwrap();
         match chat.get_receiver() {
-            People::User(user) => {
-                assert_eq!(client.get_user(), user);
-                println!("# {}: {}", chat.get_sender(), chat.get_body());
-            }
+            People::User(_) => println!("# {}: {}", chat.get_sender(), chat.get_body()),
             People::Group(group) => {
-                println!("#[{}] {}: {}", group, chat.get_sender(), chat.get_body());
+                println!("#[{}] {}: {}", group, chat.get_sender(), chat.get_body())
             }
         }
     }
@@ -84,25 +81,27 @@ fn handle_write_stream(mut client: Client, pulse_receiver: mpsc::Receiver<()>) {
         let mut header = String::new();
         io::stdin().read_line(&mut header).unwrap();
 
-        let method_type = header
-            .split_whitespace()
-            .next()
-            .ok_or(ParseError::method_type_not_found())
-            .unwrap();
-        let body = if method_type == "CHAT" {
-            print!("> ");
-            io::stdout().flush().unwrap();
+        let body = match header.split_whitespace().next() {
+            Some(method) => {
+                if method == "CHAT" {
+                    print!("> ");
+                    io::stdout().flush().unwrap();
 
-            let mut body = String::new();
-            io::stdin().read_line(&mut body).unwrap();
+                    let mut body = String::new();
+                    io::stdin().read_line(&mut body).unwrap();
 
-            Some(body)
-        } else {
-            None
+                    Some(body)
+                } else {
+                    None
+                }
+            }
+            None => None,
         };
 
-        let message = parser.parse_message(header, body).unwrap();
-        client.send_message(message).unwrap();
+        match parser.parse_message(header, body) {
+            Ok(message) => client.send_message(message).unwrap(),
+            Err(err) => println!("{}", err),
+        };
         println!();
     }
 }
@@ -113,6 +112,5 @@ fn is_pulsing(pulse_receiver: &mpsc::Receiver<()>) -> bool {
             return false;
         }
     }
-
     true
 }

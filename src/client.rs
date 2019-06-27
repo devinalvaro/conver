@@ -7,7 +7,7 @@ use bincode;
 
 use crate::buffer::{self, Buffer, BUFFER_SIZE};
 use crate::message::{Chat, Message};
-use crate::people::User;
+use crate::people::{People, User};
 
 pub struct Client {
     user: User,
@@ -52,7 +52,7 @@ impl Client {
     pub fn read_chat(&mut self) -> Result<Chat, Box<dyn Error>> {
         let mut buf: Buffer = [0; BUFFER_SIZE];
         loop {
-            let n = self.stream.read(&mut buf).unwrap();
+            let n = self.stream.read(&mut buf)?;
             if n == 0 {
                 // disconnect
                 return Err(Box::new(io::Error::new(
@@ -64,11 +64,14 @@ impl Client {
                 // retry
                 continue;
             }
-
             break;
         }
-
-        Ok(bincode::deserialize(&buf[..]).unwrap())
+        let chat: Chat = bincode::deserialize(&buf[..])?;
+        match chat.get_receiver() {
+            People::User(user) => assert_eq!(&self.user, user),
+            People::Group(_) => {}
+        };
+        Ok(chat)
     }
 
     pub fn send_message(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
@@ -77,11 +80,10 @@ impl Client {
             Message::Join(ref join) => assert_eq!(&self.user, join.get_sender()),
             Message::Leave(ref leave) => assert_eq!(&self.user, leave.get_sender()),
         };
-
-        let message = bincode::serialize(&message).unwrap();
+        let message = bincode::serialize(&message)?;
         let buf = buffer::from_vec(message);
         loop {
-            let n = self.stream.write(&buf).unwrap();
+            let n = self.stream.write(&buf)?;
             if n == 0 {
                 // disconnect
                 return Err(Box::new(io::Error::new(

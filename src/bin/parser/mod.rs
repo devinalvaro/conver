@@ -22,9 +22,8 @@ impl Parser {
         body: Option<String>,
     ) -> Result<Message, ParseError> {
         let mut header = header.split_whitespace();
-
-        let method_type = header.next().ok_or(ParseError::method_type_not_found())?;
-        match method_type {
+        let method = header.next().ok_or(ParseError::method_type_not_found())?;
+        match method {
             "CHAT" => Ok(Message::Chat(self.parse_chat(header, body.unwrap())?)),
             "JOIN" => Ok(Message::Join(self.parse_join(header)?)),
             "LEAVE" => Ok(Message::Leave(self.parse_leave(header)?)),
@@ -49,21 +48,18 @@ impl Parser {
             }
             _ => return Err(ParseError::unknown_receiver_type()),
         };
-
         Ok(Chat::new(self.sender.clone(), receiver, body))
     }
 
     fn parse_join(&self, mut header: SplitWhitespace) -> Result<Join, ParseError> {
         let groupname = header.next().ok_or(ParseError::groupname_not_found())?;
         let group = Group::new(groupname.into());
-
         Ok(Join::new(self.sender.clone(), group))
     }
 
     fn parse_leave(&self, mut header: SplitWhitespace) -> Result<Leave, ParseError> {
         let groupname = header.next().ok_or(ParseError::groupname_not_found())?;
         let group = Group::new(groupname.into());
-
         Ok(Leave::new(self.sender.clone(), group))
     }
 }

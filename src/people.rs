@@ -43,3 +43,9 @@ impl Group {
         &self.groupname
     }
 }
+
+impl fmt::Display for Group {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.groupname)
+    }
+}

@@ -24,6 +24,12 @@ impl ParseError {
         }
     }
 
+    pub fn unknown_receiver_type() -> ParseError {
+        ParseError {
+            message: "unknown receiver type",
+        }
+    }
+
     pub fn username_not_found() -> ParseError {
         ParseError {
             message: "username not found",
@@ -33,12 +39,6 @@ impl ParseError {
     pub fn groupname_not_found() -> ParseError {
         ParseError {
             message: "groupname not found",
-        }
-    }
-
-    pub fn unknown_receiver_type() -> ParseError {
-        ParseError {
-            message: "unknown receiver type",
         }
     }
 }
