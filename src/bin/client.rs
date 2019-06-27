@@ -6,6 +6,7 @@ use std::thread;
 use clap::{App, Arg};
 
 use conver::client::Client;
+use conver::people::People;
 
 mod parser;
 
@@ -64,7 +65,15 @@ fn handle_stream(client: Client) -> Result<(), Box<dyn Error>> {
 fn handle_read_stream(mut client: Client, _pulse_sender: mpsc::Sender<()>) {
     loop {
         let chat = client.read_chat().unwrap();
-        println!("# {}: {}", chat.get_sender(), chat.get_body());
+        match chat.get_receiver() {
+            People::User(user) => {
+                assert_eq!(client.get_user(), user);
+                println!("# {}: {}", chat.get_sender(), chat.get_body());
+            }
+            People::Group(group) => {
+                println!("#[{}] {}: {}", group, chat.get_sender(), chat.get_body());
+            }
+        }
     }
 }
 
