@@ -1,4 +1,3 @@
-use std::collections::{vec_deque::VecDeque, HashMap, HashSet};
 use std::error::Error;
 use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
@@ -12,6 +11,7 @@ use bincode;
 use crate::buffer::{self, Buffer, BUFFER_SIZE};
 use crate::message::{Chat, Join, Leave, Message};
 use crate::people::{Group, People, User};
+use crate::store::{MemoryStore, Store};
 
 pub struct Server<'a> {
     host: &'a str,
@@ -21,8 +21,7 @@ pub struct Server<'a> {
 }
 
 struct ServerInner {
-    group_member_lists: Mutex<HashMap<Group, HashSet<User>>>,
-    pending_chat_queues: Mutex<HashMap<User, VecDeque<Arc<Chat>>>>,
+    store: Mutex<Box<dyn Store + Send>>,
 }
 
 impl<'a> Server<'a> {
@@ -32,10 +31,13 @@ impl<'a> Server<'a> {
             port,
 
             inner: Arc::new(ServerInner {
-                group_member_lists: Mutex::new(HashMap::new()),
-                pending_chat_queues: Mutex::new(HashMap::new()),
+                store: Mutex::new(Server::store()),
             }),
         }
+    }
+
+    fn store() -> Box<dyn Store + Send> {
+        Box::new(MemoryStore::new())
     }
 
     pub fn start(self) -> Result<(), Box<dyn Error>> {
@@ -98,53 +100,32 @@ impl ServerInner {
     fn queue_chat(&self, chat: Chat) {
         match chat.get_receiver() {
             People::User(user) => {
-                self.queue_user_chat(&user.clone(), Arc::new(chat));
+                self.queue_user_chat(&user.clone(), chat);
             }
             People::Group(group) => {
-                self.queue_group_chat(&group.clone(), Arc::new(chat));
+                self.queue_group_chat(&group.clone(), chat);
             }
         };
     }
 
     fn join_group(&self, join: Join) {
-        let mut group_member_lists = self.group_member_lists.lock().unwrap();
-        let group_members = group_member_lists
-            .entry(join.get_group().clone())
-            .or_insert_with(|| HashSet::new());
-
-        group_members.insert(join.get_sender().clone());
+        let mut store = self.store.lock().unwrap();
+        store.add_group_member(join.get_sender().clone(), join.get_group());
     }
 
     fn leave_group(&self, leave: Leave) {
-        let mut group_member_lists = self.group_member_lists.lock().unwrap();
-        let group_members = group_member_lists
-            .entry(leave.get_group().clone())
-            .or_insert_with(|| HashSet::new());
-
-        group_members.remove(leave.get_sender());
+        let mut store = self.store.lock().unwrap();
+        store.remove_group_member(leave.get_sender(), leave.get_group());
     }
 
-    fn queue_user_chat(&self, user: &User, chat: Arc<Chat>) {
-        let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
-        let pending_chats = pending_chat_queues
-            .entry(user.clone())
-            .or_insert_with(|| VecDeque::new());
-
-        pending_chats.push_back(chat);
+    fn queue_user_chat(&self, user: &User, chat: Chat) {
+        let mut store = self.store.lock().unwrap();
+        store.queue_user_chat(user, chat);
     }
 
-    fn queue_group_chat(&self, group: &Group, chat: Arc<Chat>) {
-        let mut group_member_lists = self.group_member_lists.lock().unwrap();
-        let group_members = group_member_lists
-            .entry(group.clone())
-            .or_insert_with(|| HashSet::new());
-
-        for member in group_members.iter() {
-            if member == chat.get_sender() {
-                continue;
-            }
-            self.queue_user_chat(member, Arc::clone(&chat));
-        }
+    fn queue_group_chat(&self, group: &Group, chat: Chat) {
+        let mut store = self.store.lock().unwrap();
+        store.queue_group_chat(group, chat);
     }
 }
 
@@ -156,19 +137,15 @@ impl ServerInner {
         user: User,
     ) {
         while self.is_pulsing(&pulse_receiver) {
-            self.send_pending_chat(&mut stream, &user);
+            self.send_chat(&mut stream, &user);
         }
     }
 
-    fn send_pending_chat(&self, stream: &mut TcpStream, user: &User) {
-        let mut pending_chat_queues = self.pending_chat_queues.lock().unwrap();
-        let pending_chats = pending_chat_queues.get_mut(user);
-
-        if let Some(pending_chats) = pending_chats {
-            if let Some(chat) = pending_chats.front() {
-                if self.write_chat(stream, chat) {
-                    pending_chats.pop_front();
-                }
+    fn send_chat(&self, stream: &mut TcpStream, user: &User) {
+        let mut store = self.store.lock().unwrap();
+        if let Some(chat) = store.first_user_chat(user) {
+            if self.write_chat(stream, chat) {
+                store.dequeue_user_chat(user);
             }
         }
     }
