@@ -1,5 +1,4 @@
 use std::collections::{vec_deque::VecDeque, HashMap, HashSet};
-use std::sync::Arc;
 
 use crate::message::Chat;
 use crate::people::{Group, User};
@@ -7,7 +6,7 @@ use crate::store::Store;
 
 pub struct MemoryStore {
     group_member_lists: HashMap<Group, HashSet<User>>,
-    pending_chat_queues: HashMap<User, VecDeque<Arc<Chat>>>,
+    pending_chat_queues: HashMap<User, VecDeque<Chat>>,
 }
 
 impl MemoryStore {
@@ -20,10 +19,10 @@ impl MemoryStore {
 }
 
 impl Store for MemoryStore {
-    fn first_user_chat(&self, user: &User) -> Option<&Chat> {
+    fn first_user_chat(&self, user: &User) -> Option<Chat> {
         if let Some(pending_chats) = self.pending_chat_queues.get(user) {
             if let Some(chat) = pending_chats.front() {
-                return Some(chat);
+                return Some(chat.clone());
             }
         }
         None
@@ -34,7 +33,7 @@ impl Store for MemoryStore {
             .pending_chat_queues
             .entry(user.clone())
             .or_insert_with(|| VecDeque::new());
-        pending_chats.push_back(Arc::new(chat));
+        pending_chats.push_back(chat);
     }
 
     fn queue_group_chat(&mut self, group: &Group, chat: Chat) {
@@ -47,7 +46,7 @@ impl Store for MemoryStore {
                     .pending_chat_queues
                     .entry(member.clone())
                     .or_insert_with(|| VecDeque::new());
-                pending_chats.push_back(Arc::new(chat.clone()));
+                pending_chats.push_back(chat.clone());
             }
         }
     }

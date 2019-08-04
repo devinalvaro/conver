@@ -3,10 +3,10 @@ use crate::people::{Group, User};
 
 mod memory;
 
-pub use memory::MemoryStore;
+pub use self::memory::MemoryStore;
 
 pub trait Store {
-    fn first_user_chat(&self, user: &User) -> Option<&Chat>;
+    fn first_user_chat(&self, user: &User) -> Option<Chat>;
     fn queue_user_chat(&mut self, user: &User, chat: Chat);
     fn queue_group_chat(&mut self, group: &Group, chat: Chat);
     fn dequeue_user_chat(&mut self, user: &User);

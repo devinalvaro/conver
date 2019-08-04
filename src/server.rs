@@ -144,14 +144,14 @@ impl ServerInner {
     fn send_chat(&self, stream: &mut TcpStream, user: &User) {
         let mut store = self.store.lock().unwrap();
         if let Some(chat) = store.first_user_chat(user) {
-            if self.write_chat(stream, chat) {
+            if self.write_chat(stream, &chat) {
                 store.dequeue_user_chat(user);
             }
         }
     }
 
     fn write_chat(&self, stream: &mut TcpStream, chat: &Chat) -> bool {
-        let chat = bincode::serialize(&*chat).unwrap();
+        let chat = bincode::serialize(chat).unwrap();
         let buf = buffer::from_vec(chat);
         stream.write(&buf).unwrap() == buf.len()
     }
