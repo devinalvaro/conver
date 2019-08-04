@@ -11,7 +11,7 @@ use bincode;
 use crate::buffer::{self, Buffer, BUFFER_SIZE};
 use crate::message::{Chat, Join, Leave, Message};
 use crate::people::{Group, People, User};
-use crate::store::{MemoryStore, Store};
+use crate::store::{MemoryStore, RedisStore, Store, StoreKind};
 
 pub struct Server<'a> {
     host: &'a str,
@@ -25,18 +25,21 @@ struct ServerInner {
 }
 
 impl<'a> Server<'a> {
-    pub fn new(host: &'a str, port: &'a str) -> Self {
+    pub fn new(host: &'a str, port: &'a str, store_kind: StoreKind) -> Self {
         Server {
             host,
             port,
 
             inner: Arc::new(ServerInner {
-                store: Mutex::new(Server::store()),
+                store: Mutex::new(Server::store(store_kind)),
             }),
         }
     }
 
-    fn store() -> Box<dyn Store + Send> {
+    fn store(store_kind: StoreKind) -> Box<dyn Store + Send> {
+        if let StoreKind::RedisStore(url) = store_kind {
+            return Box::new(RedisStore::new(url).unwrap());
+        }
         Box::new(MemoryStore::new())
     }
 
