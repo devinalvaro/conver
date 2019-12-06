@@ -1,8 +1,8 @@
 use crate::message::Chat;
 use crate::people::{Group, User};
 
-mod memory;
-mod redis;
+pub mod memory;
+pub mod redis;
 
 pub use self::memory::MemoryStore;
 pub use self::redis::RedisStore;
@@ -15,9 +15,4 @@ pub trait Store {
 
     fn add_group_member(&mut self, user: User, group: &Group);
     fn remove_group_member(&mut self, user: &User, group: &Group);
-}
-
-pub enum StoreKind<'a> {
-    MemoryStore,
-    RedisStore(&'a str),
 }
