@@ -94,7 +94,7 @@ impl ServerInner {
     fn queue_chat(&self, chat: Chat) {
         match chat.get_receiver() {
             People::User(user) => {
-                self.queue_user_chat(&user.clone(), chat);
+                self.queue_sole_chat(&user.clone(), chat);
             }
             People::Group(group) => {
                 self.queue_group_chat(&group.clone(), chat);
@@ -112,9 +112,9 @@ impl ServerInner {
         store.remove_group_member(leave.get_sender(), leave.get_group());
     }
 
-    fn queue_user_chat(&self, user: &User, chat: Chat) {
+    fn queue_sole_chat(&self, user: &User, chat: Chat) {
         let mut store = self.store.lock().unwrap();
-        store.queue_user_chat(user, chat);
+        store.queue_chat(user, chat);
     }
 
     fn queue_group_chat(&self, group: &Group, chat: Chat) {
@@ -137,9 +137,9 @@ impl ServerInner {
 
     fn send_chat(&self, stream: &mut TcpStream, user: &User) {
         let mut store = self.store.lock().unwrap();
-        if let Some(chat) = store.first_user_chat(user) {
+        if let Some(chat) = store.front_chat(user) {
             if self.write_chat(stream, &chat) {
-                store.dequeue_user_chat(user);
+                store.dequeue_chat(user);
             }
         }
     }

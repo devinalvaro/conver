@@ -24,7 +24,7 @@ impl RedisStore {
 }
 
 impl Store for RedisStore {
-    fn first_user_chat(&self, user: &User) -> Option<Chat> {
+    fn front_chat(&self, user: &User) -> Option<Chat> {
         let chats: RedisResult<Vec<Chat>> = self.conn.borrow_mut().lrange(user, 0, 0);
         if let Ok(chats) = chats {
             if chats.len() >= 1 {
@@ -34,8 +34,12 @@ impl Store for RedisStore {
         None
     }
 
-    fn queue_user_chat(&mut self, user: &User, chat: Chat) {
+    fn queue_chat(&mut self, user: &User, chat: Chat) {
         let _: RedisResult<()> = self.conn.borrow_mut().rpush(user, chat);
+    }
+
+    fn dequeue_chat(&mut self, user: &User) {
+        let _: RedisResult<()> = self.conn.borrow_mut().lpop(user);
     }
 
     fn queue_group_chat(&mut self, group: &Group, chat: Chat) {
@@ -49,10 +53,6 @@ impl Store for RedisStore {
                 let _: RedisResult<()> = self.conn.borrow_mut().rpush(member, chat.clone());
             }
         }
-    }
-
-    fn dequeue_user_chat(&mut self, user: &User) {
-        let _: RedisResult<()> = self.conn.borrow_mut().lpop(user);
     }
 
     fn add_group_member(&mut self, user: User, group: &Group) {

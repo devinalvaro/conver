@@ -19,7 +19,7 @@ impl MemoryStore {
 }
 
 impl Store for MemoryStore {
-    fn first_user_chat(&self, user: &User) -> Option<Chat> {
+    fn front_chat(&self, user: &User) -> Option<Chat> {
         if let Some(pending_chats) = self.pending_chat_queues.get(user) {
             if let Some(chat) = pending_chats.front() {
                 return Some(chat.clone());
@@ -28,12 +28,20 @@ impl Store for MemoryStore {
         None
     }
 
-    fn queue_user_chat(&mut self, user: &User, chat: Chat) {
+    fn queue_chat(&mut self, user: &User, chat: Chat) {
         let pending_chats = self
             .pending_chat_queues
             .entry(user.clone())
             .or_insert_with(|| VecDeque::new());
         pending_chats.push_back(chat);
+    }
+
+    fn dequeue_chat(&mut self, user: &User) {
+        let pending_chats = self
+            .pending_chat_queues
+            .entry(user.clone())
+            .or_insert_with(|| VecDeque::new());
+        pending_chats.pop_front();
     }
 
     fn queue_group_chat(&mut self, group: &Group, chat: Chat) {
@@ -49,14 +57,6 @@ impl Store for MemoryStore {
                 pending_chats.push_back(chat.clone());
             }
         }
-    }
-
-    fn dequeue_user_chat(&mut self, user: &User) {
-        let pending_chats = self
-            .pending_chat_queues
-            .entry(user.clone())
-            .or_insert_with(|| VecDeque::new());
-        pending_chats.pop_front();
     }
 
     fn add_group_member(&mut self, user: User, group: &Group) {
